@@ -25,7 +25,7 @@
   var DIFF = ['', 'Facile', 'Moyen', 'Difficile'], STARS = ['', '★☆☆', '★★☆', '★★★'];
   var BUILTIN = { ali: 'Ali', simo: 'Simo', mona: 'Mona' }, ORDER = ['ali', 'simo', 'mona'];
   var EMOJIS = ['🦊', '🐼', '🦁', '🐸', '🐵', '🦄', '🐯', '🐨', '🐙', '🦉', '🤠', '😎'];
-  var VERSION = 5, REVEAL_MAX = 45000, ONLINE_MS = 12000, DEAD_MS = 30 * 60000;
+  var VERSION = 6, REVEAL_MAX = 45000, ONLINE_MS = 12000, DEAD_MS = 30 * 60000;
 
   var qp = new URLSearchParams(location.search);
   var room = ((location.hash.match(/salon=([A-Za-z0-9]{3,12})/) || [])[1] || qp.get('salon') || 'OUHMI').toUpperCase();
@@ -76,7 +76,7 @@
     if (!prefs.sound) return;
     try {
       AC = AC || new (window.AudioContext || window.webkitAudioContext)();
-      if (AC.state === 'suspended') AC.resume();
+      if (AC.state === 'suspended') { var rs = AC.resume(); if (rs && rs.catch) rs.catch(function () { }); }
       var o = AC.createOscillator(), gn = AC.createGain(), t = AC.currentTime + (delay || 0);
       o.type = type || 'sine'; o.frequency.value = f;
       gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(v || 0.15, t + 0.015); gn.gain.exponentialRampToValueAtTime(0.0001, t + d);
@@ -430,20 +430,16 @@
         (per && per.pts ? '<span class="sp-d">+' + fmt(per.pts) + '</span>' : '') + '</div>';
     }).join('');
   }
-  function dotsHTML(shown) {
-    var mine = scoreOf(my.pid, shown).per, s = '';
-    for (var i = 0; i < g.qs.length; i++) {
-      var q = OUH.byId[g.qs[i]], cls = 'd' + q.d + (isX2(i) ? ' x2' : '');
-      if (i <= shown) cls += mine[i] && mine[i].ok ? ' ok' : ' ko'; else if (i === g.qi) cls += ' cur';
-      s += '<i class="' + cls + '"></i>';
-    }
+  function segsHTML() { // progression sobre : une barrette par question
+    var s = '';
+    for (var i = 0; i < g.qs.length; i++) s += '<i class="' + (i < g.qi ? 'done' : i === g.qi ? 'cur' : '') + '"></i>';
     return s;
   }
 
   function viewPlay(I) {
     var qi = g.qi, q = OUH.byId[g.qs[qi]], th = THEME[q.t] || { name: q.t, emoji: '❓', col: '#ddd' }, n = g.qs.length;
     var shown = I.ph === 'reveal' ? qi : qi - 1, mine = my.ans[qi], dbl = isX2(qi);
-    var bar = ['qbar', 'qbar', '<button class="icon" data-act="stop" aria-label="Arrêter la partie">✕</button><div class="dots">' + dotsHTML(shown) + '</div><div class="myscore">' + lire(scoreOf(my.pid, shown).total) + '</div>'];
+    var bar = ['qbar', 'qbar', '<button class="icon" data-act="stop" aria-label="Arrêter la partie">✕</button><div class="segs">' + segsHTML() + '</div><div class="myscore">' + lire(scoreOf(my.pid, shown).total) + '</div>'];
     var strip = ['strip', 'strip', stripHTML(I, shown)];
     if (I.ph === 'sync') return [bar, ['sync', 'count', '<p class="count-q">Synchronisation…</p><div class="count-n">⏳</div>'], strip];
     if (I.ph === 'count') {
@@ -464,7 +460,7 @@
       return '<button class="' + cls + '" data-act="ans" data-c="' + c + '"' + (lock ? ' disabled' : '') + '><span class="letter">' + LET[i] + '</span><span class="txt">' + esc(q.a[c]) + '</span>' +
         (who[c] ? '<span class="who">' + who[c].map(function (p) { return mini(p); }).join('') + '</span>' : '') + '</button>';
     }).join('');
-    var meta = '<div class="meta"><span class="chip" style="background:' + th.col + '">' + th.emoji + ' ' + th.name + '</span><span class="chip ghost">' + STARS[q.d] + ' ' + lire(100 * q.d) + '</span>' + (dbl ? '<span class="chip x2">⭐ ×2</span>' : '') + '<span class="chip ghost">' + (qi + 1) + '/' + n + '</span></div>';
+    var meta = '<p class="meta">' + th.emoji + ' ' + th.name + ' · ' + DIFF[q.d] + ' · ' + lire(100 * q.d) + ' · ' + (qi + 1) + '/' + n + (dbl ? ' <span class="x2tag">⭐ compte double</span>' : '') + '</p>';
     var under, next = '';
     if (reveal) {
       var per = scoreOf(my.pid, qi).per[qi] || { ok: false }, res;
@@ -482,13 +478,13 @@
       under = dbl ? '<p class="x2hint">⭐ Question double : les points comptent ×2 !</p>' : '';
     }
     if (reveal) return [bar,
-      ['q' + qi + 'r', 'play compact', '<div class="qcard">' + esc(q.q) + '</div>'],
+      ['q' + qi + 'r', 'play compact', '<h1 class="qcard">' + esc(q.q) + '</h1>'],
       ['a' + qi + 'r', 'answers revealed', answers],
       ['u' + qi + 'r', 'under', under],
       ['n' + qi, 'next', next],
       strip];
     return [bar,
-      ['q' + qi, 'play', meta + '<div class="timer" id="timer"><i></i><b></b></div><div class="qcard">' + esc(q.q) + '</div>'],
+      ['q' + qi, 'play', meta + '<div class="timer" id="timer"><span class="tbar"><i></i></span><b></b></div><h1 class="qcard">' + esc(q.q) + '</h1>'],
       ['a' + qi, 'answers', answers],
       ['u' + qi, 'under', under],
       strip];
@@ -615,8 +611,13 @@
     ui.lastErr = msg;
     if (now() - (ui.errAt || 0) > 15000) { ui.errAt = now(); try { toast('Oups, petit bug : ' + msg); } catch (x) { } }
   }
-  window.addEventListener('error', function (ev) { oops(ev.error || ev.message); });
-  window.addEventListener('unhandledrejection', function (ev) { oops(ev.reason); });
+  window.addEventListener('error', function (ev) { if (ev.message !== 'Script error.') oops(ev.error || ev.message); });
+  window.addEventListener('unhandledrejection', function (ev) { ui.lastErr = String(ev.reason && ev.reason.message ? ev.reason.message : ev.reason).slice(0, 160); });
+  // iPhone : le son n'est autorisé qu'après un premier geste, et :active a besoin d'un écouteur tactile
+  function unlockAudio() { try { if (prefs.sound) { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') { var r = AC.resume(); if (r && r.catch) r.catch(function () { }); } } } catch (e) { } }
+  document.addEventListener('touchend', unlockAudio, { passive: true });
+  document.addEventListener('mousedown', unlockAudio);
+  document.addEventListener('touchstart', function () { }, { passive: true });
   function tickNow() {
     if (!my) { document.body.dataset.screen = 'home'; ui.doubt = null; paint(viewHome()); return; }
     var t = now();
@@ -641,7 +642,7 @@
       } else if (I.ph === 'ask' || I.ph === 'wait') {
         var tm = $('#timer'), dur = g.cfg.dur * 1000, sec = Math.ceil(I.left / 1000);
         if (tm) {
-          tm.firstChild.style.width = (100 * I.left / dur).toFixed(1) + '%'; tm.lastChild.textContent = sec;
+          tm.firstChild.firstChild.style.width = (100 * I.left / dur).toFixed(1) + '%'; tm.lastChild.textContent = sec;
           tm.classList.toggle('hot', sec <= 5);
           if (I.ph === 'ask' && sec <= 5 && sec > 0 && ui.lastTick !== sec) { ui.lastTick = sec; SFX.tick(); }
         }
@@ -689,7 +690,7 @@
       case 'share':
         var url = location.origin + location.pathname + (room === 'OUHMI' ? '' : '#salon=' + room);
         if (navigator.share) navigator.share({ title: 'Ouhmitalie', text: 'Rejoins-moi sur Ouhmitalie !', url: url }).catch(function () { });
-        else if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { toast('Lien copié !'); });
+        else if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { toast('Lien copié !'); }, function () { toast(url); });
         else openSheet('<h2>Lien à partager</h2><input id="sharelink" readonly value="' + esc(url) + '"><button class="btn" data-act="close"><span>Fermer</span></button>');
         break;
       case 'net':
