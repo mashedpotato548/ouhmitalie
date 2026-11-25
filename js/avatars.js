@@ -42,14 +42,14 @@
       '<circle cx="8" cy="40" r="6.5" fill="' + SKIN + '" ' + S + '/>' +
       '<circle cx="92" cy="40" r="6.5" fill="' + SKIN + '" ' + S + '/>' +
       '<path d="' + TORSO + '" fill="' + o.shirt + '" ' + S + '/>' +
-      '<clipPath id="tc' + o.uid + '"><path d="' + TORSO + '"/></clipPath>' +
-      '<g clip-path="url(#tc' + o.uid + ')">' + (o.front || '') + '</g>' +
+      '<g clip-path="url(#ouh-torso)">' + (o.front || '') + '</g>' +
       '<path d="' + TORSO + '" fill="none" ' + S + '/>' +
       (o.over || '') +
       '</svg>';
   }
 
-  var uid = 0;
+  // Masque du torse, partagé par tous les bonshommes (défini une seule fois dans la page).
+  document.body.insertAdjacentHTML('afterbegin', '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><clipPath id="ouh-torso"><path d="' + TORSO + '"/></clipPath></defs></svg>');
   var BODIES = {
     touriste: function () {
       var f = '';
@@ -58,14 +58,14 @@
       });
       var over = '<path d="M38 6 L46 30 M62 6 L56 30" stroke="' + INK + '" stroke-width="2" fill="none"/>' +
         '<rect x="40" y="28" width="22" height="15" rx="3" fill="#3A3A45" ' + S + '/><circle cx="51" cy="35.5" r="4.5" fill="#9AD0FF" stroke="' + INK + '" stroke-width="2"/>';
-      return baseBody({ uid: ++uid, shirt: '#22B8C9', pants: '#F2E2B8', shoes: '#E63B2E', front: f, over: over });
+      return baseBody({ shirt: '#22B8C9', pants: '#F2E2B8', shoes: '#E63B2E', front: f, over: over });
     },
     pizzaiolo: function () {
       var f = '<circle cx="43" cy="24" r="2.2" fill="' + INK + '"/><circle cx="57" cy="24" r="2.2" fill="' + INK + '"/><circle cx="43" cy="36" r="2.2" fill="' + INK + '"/><circle cx="57" cy="36" r="2.2" fill="' + INK + '"/>' +
         '<path d="M34 4 L50 20 L66 4 Z" fill="#E63B2E" stroke="' + INK + '" stroke-width="2.5"/>';
       var over = '<g ' + S + '><circle cx="94" cy="30" r="12" fill="#E9A54B"/></g><circle cx="94" cy="30" r="8.5" fill="#E63B2E"/>' +
         '<circle cx="91" cy="27" r="2.6" fill="#FFFDF6"/><circle cx="97" cy="32" r="2.6" fill="#FFFDF6"/><circle cx="96" cy="25.5" r="1.6" fill="#1E9E5A"/>';
-      return baseBody({ uid: ++uid, shirt: '#FFFDF6', pants: '#3A3A45', front: f, over: over });
+      return baseBody({ shirt: '#FFFDF6', pants: '#3A3A45', front: f, over: over });
     },
     gondolier: function () {
       var f = '';
@@ -73,24 +73,24 @@
       f += '<rect x="10" y="44" width="80" height="7" fill="#E63B2E"/>';
       var over = '<path d="M93 -2 L93 80" stroke="' + INK + '" stroke-width="6.5" stroke-linecap="round"/><path d="M93 -2 L93 80" stroke="#B9814A" stroke-width="3" stroke-linecap="round"/>' +
         '<circle cx="92" cy="40" r="6.5" fill="' + SKIN + '" ' + S + '/>';
-      return baseBody({ uid: ++uid, shirt: '#FFFDF6', sleeve: '#1D3C8F', pants: '#22222B', front: f, over: over });
+      return baseBody({ shirt: '#FFFDF6', sleeve: '#1D3C8F', pants: '#22222B', front: f, over: over });
     },
     gladiateur: function () {
       var f = '<path d="M24 6 L80 54 L70 58 L20 14 Z" fill="#6B3F22"/><rect x="10" y="40" width="80" height="8" fill="#FFC83D"/><circle cx="50" cy="44" r="4.5" fill="#E63B2E" stroke="' + INK + '" stroke-width="2"/>';
       var over = '<g ' + S + '><circle cx="8" cy="36" r="15" fill="#E63B2E"/><circle cx="8" cy="36" r="5.5" fill="#FFC83D"/></g>';
-      return baseBody({ uid: ++uid, shirt: '#B9814A', sleeve: SKIN, pants: '#6B3F22', shoes: '#6B3F22', front: f, over: over });
+      return baseBody({ shirt: '#B9814A', sleeve: SKIN, pants: '#6B3F22', shoes: '#6B3F22', front: f, over: over });
     },
     centurion: function () {
       var back = '<path d="M20 8 Q50 -2 80 8 L90 66 Q50 74 10 66 Z" fill="#C4271C" ' + S + '/>';
       var f = '<rect x="26" y="6" width="48" height="34" rx="8" fill="#C9D3DE" stroke="' + INK + '" stroke-width="2.5"/>' +
         '<path d="M38 16 Q50 24 62 16 M40 28 Q50 34 60 28" stroke="' + INK + '" stroke-width="2" fill="none"/>' +
         '<g stroke="' + INK + '" stroke-width="2" fill="#FFC83D"><rect x="26" y="42" width="10" height="14"/><rect x="38" y="42" width="10" height="14"/><rect x="50" y="42" width="10" height="14"/><rect x="62" y="42" width="10" height="14"/></g>';
-      return baseBody({ uid: ++uid, shirt: '#E63B2E', pants: SKIN, shoes: '#6B3F22', back: back, front: f });
+      return baseBody({ shirt: '#E63B2E', pants: SKIN, shoes: '#6B3F22', back: back, front: f });
     },
     senateur: function () {
       var f = '<path d="M20 2 L34 2 L82 56 L66 60 Z" fill="#7A2E8E"/><path d="M30 30 Q50 40 74 30" stroke="#D9D2C2" stroke-width="2" fill="none"/><path d="M26 42 Q50 52 78 42" stroke="#D9D2C2" stroke-width="2" fill="none"/>';
       var over = '<g ' + S + '><rect x="-2" y="26" width="12" height="24" rx="5" fill="#F6E7B4"/></g>';
-      return baseBody({ uid: ++uid, shirt: '#FFFDF6', pants: '#FFFDF6', shoes: '#B9814A', front: f, over: over });
+      return baseBody({ shirt: '#FFFDF6', pants: '#FFFDF6', shoes: '#B9814A', front: f, over: over });
     },
     doge: function () {
       var f = '';
@@ -99,13 +99,13 @@
       });
       f += '<path d="M20 0 L80 0 L76 18 Q50 26 24 18 Z" fill="#FFFDF6" stroke="' + INK + '" stroke-width="2.5"/>' +
         '<circle cx="34" cy="10" r="1.6" fill="' + INK + '"/><circle cx="44" cy="15" r="1.6" fill="' + INK + '"/><circle cx="56" cy="15" r="1.6" fill="' + INK + '"/><circle cx="66" cy="10" r="1.6" fill="' + INK + '"/><circle cx="50" cy="8" r="1.6" fill="' + INK + '"/>';
-      return baseBody({ uid: ++uid, shirt: '#F0B429', pants: '#C4271C', shoes: '#C4271C', front: f });
+      return baseBody({ shirt: '#F0B429', pants: '#C4271C', shoes: '#C4271C', front: f });
     },
     empereur: function () {
       var back = '<path d="M22 8 Q50 -2 78 8 L86 62 Q50 70 14 62 Z" fill="#5B1E7A" ' + S + '/>';
       var f = '<path d="M66 2 L80 2 L34 60 L18 56 Z" fill="#FFC83D"/><rect x="10" y="40" width="80" height="6" fill="#FFC83D"/>';
       var over = '<g ' + S + '><circle cx="92" cy="26" r="9" fill="#FFC83D"/></g><path d="M88 26 h8 M92 22 v8" stroke="' + INK + '" stroke-width="2"/>';
-      return baseBody({ uid: ++uid, shirt: '#7A2E8E', pants: '#FFFDF6', shoes: '#FFC83D', back: back, front: f, over: over });
+      return baseBody({ shirt: '#7A2E8E', pants: '#FFFDF6', shoes: '#FFC83D', back: back, front: f, over: over });
     }
   };
 

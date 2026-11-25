@@ -25,7 +25,7 @@
   var DIFF = ['', 'Facile', 'Moyen', 'Difficile'], STARS = ['', '★☆☆', '★★☆', '★★★'];
   var BUILTIN = { ali: 'Ali', simo: 'Simo', mona: 'Mona' }, ORDER = ['ali', 'simo', 'mona'];
   var EMOJIS = ['🦊', '🐼', '🦁', '🐸', '🐵', '🦄', '🐯', '🐨', '🐙', '🦉', '🤠', '😎'];
-  var VERSION = 4, REVEAL_MAX = 45000, ONLINE_MS = 12000, DEAD_MS = 30 * 60000;
+  var VERSION = 5, REVEAL_MAX = 45000, ONLINE_MS = 12000, DEAD_MS = 30 * 60000;
 
   var qp = new URLSearchParams(location.search);
   var room = ((location.hash.match(/salon=([A-Za-z0-9]{3,12})/) || [])[1] || qp.get('salon') || 'OUHMI').toUpperCase();
@@ -368,7 +368,11 @@
 
   /* ---------- rendu ---------- */
   var app = $('#app'), cache = {}, layout = '';
+  var pressAt = 0; // un doigt ou la souris est en train d'appuyer : on ne redessine pas sous lui, sinon le clic est perdu
+  document.addEventListener('pointerdown', function () { pressAt = now(); }, true);
+  ['pointerup', 'pointercancel'].forEach(function (n) { document.addEventListener(n, function () { pressAt = 0; }, true); });
   function paint(secs) { // secs : [[id, classe, html]] — on ne touche au DOM que si le contenu change
+    if (pressAt && now() - pressAt < 800) return;
     var lay = secs.map(function (s) { return s[0] + '.' + s[1]; }).join('|');
     if (lay !== layout) {
       app.innerHTML = secs.map(function (s) { return '<section id="s-' + s[0] + '" class="' + s[1] + '"></section>'; }).join('');
