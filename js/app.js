@@ -32,7 +32,7 @@
   var dev = LS.get('dev'); if (!dev) { dev = rid(10); LS.set('dev', dev); }
   var customs = LS.get('customs', []);
   var prefs = LS.get('prefs', { sound: true, cos: {} }); prefs.cos = prefs.cos || {};
-  var my = null, players = {}, photos = {}, off = {}, g = LS.get('g.' + room, null), gAcc = 0;
+  var my = null, players = {}, photos = {}, off = {}, g = LS.get('g.' + room, null), gAcc = Date.now();
   var net = null, netUp = 0;
   var ui = { screen: 'home', rev: {}, adv: null, sheet: null, cfg: LS.get('cfg', null), gain: null, lastTick: -1 };
 
@@ -97,8 +97,15 @@
   function pushMe() {
     if (!my) return;
     my.ts = now(); my.gs = g ? [g.gid, g.seq] : null;
+    var at = g ? rawTime(g) : null;
+    if (at != null) my.gat = at; else delete my.gat; // début de la question dans mon horloge : sert de relais aux autres
     LS.set('my.' + my.pid, my);
     if (net) net.publish('p', my.pid, my);
+  }
+  function hello() { // un nouveau venu vient d'apparaître : je me présente tout de suite
+    var t = now();
+    if (t - (ui.hello || 0) < 1500) return;
+    ui.hello = t; setTimeout(pushMe, 150 + Math.random() * 350);
   }
   function pushPhoto(only) {
     var c = my && custom(my.pid);
@@ -106,30 +113,58 @@
   }
   function onMessage(kind, id, m, retained) {
     var t = now();
-    if (kind === 'g') { if (acceptGame(m)) tick(); return; }
+    if (kind === 'g') { if (acceptGame(m, retained)) tick(); return; }
+    if (kind === 'h') { if (my && m.dev !== dev) hello(); return; } // quelqu'un regarde l'accueil : je signale que je suis là
     if (kind === 'a') { if (id && typeof m.v === 'string' && m.v.indexOf('data:image/') === 0 && m.v.length < 80000) photos[id] = m.v; return; }
-    if (kind !== 'p' || !id || m.pid !== id || typeof m.ts !== 'number') return;
+    if (kind !== 'p' || !id || m.pid !== id || typeof m.ts !== 'number' || typeof m.dev !== 'string') return;
+    // décalage d'horloge avec cet appareil (le plus petit écart observé = le moins de latence)
+    if (m.dev !== dev && !retained) off[m.dev] = Math.min(off[m.dev] == null ? Infinity : off[m.dev], t - m.ts);
+    var mg = m.gen || 0;
     if (my && id === my.pid) {
-      // même personnage ouvert sur un autre téléphone : le dernier arrivé garde la place
-      if (m.dev !== dev && !retained && !m.bye && m.jt > my.jt) { toast('« ' + my.name + ' » vient d\'être choisi sur un autre téléphone.'); leave(true); }
+      // même personnage ouvert sur un autre appareil : le dernier arrivé (génération la plus haute) garde la place
+      if (m.dev === dev) return;
+      if (!(mg > my.gen || (mg === my.gen && m.dev > dev))) return;
+      if (m.bye || (retained && t - my.jt < 8000)) { my.gen = mg + 1; pushMe(); return; } // vieil état laissé par un autre appareil
+      toast('« ' + my.name + ' » est maintenant ouvert sur un autre appareil.'); leave(true);
       return;
     }
-    if (!retained) off[id] = Math.min(off[id] == null ? Infinity : off[id], t - m.ts);
-    var cur = players[id], seen = retained ? Math.min(t, m.ts + (off[id] || 0)) : t;
-    if (cur && cur.s.ts >= m.ts) { if (!retained) cur.seen = t; return; }
-    players[id] = { s: m, seen: seen };
+    var cur = players[id];
+    if (cur) {
+      var cg = cur.s.gen || 0;
+      if (mg < cg) return;
+      if (mg === cg) {
+        if (m.dev !== cur.s.dev) { if (m.dev < cur.s.dev) return; }
+        else if (cur.s.ts >= m.ts) { if (!retained) cur.seen = t; return; }
+      }
+    }
+    var wasOn = !!cur && online(id);
+    // un message « retenu » ne prouve pas que le joueur est là : seul un message en direct le met en ligne
+    players[id] = { s: m, seen: retained ? (cur && cur.s.dev === m.dev ? cur.seen : 0) : t };
+    if (my && !retained && !m.bye && !wasOn) hello();
     // un joueur est en retard sur l'état de la partie : on le lui renvoie
     if (g && my && m.gs && m.gs[0] === g.gid && m.gs[1] < g.seq && t - gAcc > 3000 && t - (ui.lastHeal || 0) > 3000 && !retained) { ui.lastHeal = t; net.publish('g', null, g); }
   }
 
   /* ---------- état de la partie ---------- */
-  function gameTime(m) { return m.at + (my && m.by === my.pid ? 0 : (off[m.by] || 0)); }
-  function acceptGame(m) {
+  function rawTime(m) { // début de la question (m.at, horloge de l'appareil qui l'a publié) traduit dans MON horloge ; null si inconnu
+    if (m.bd === dev) return m.at;
+    if (m.bd && off[m.bd] != null) return m.at + off[m.bd];
+    for (var p in players) { // relais : un autre joueur présent connaît déjà l'instant de départ
+      var s = players[p].s;
+      if (s.gs && s.gs[0] === m.gid && s.gs[1] === m.seq && typeof s.gat === 'number' && off[s.dev] != null) return s.gat + off[s.dev];
+    }
+    return null;
+  }
+  function gameTime(m) { var at = rawTime(m); return at != null ? at : (now() - gAcc > 6000 ? m.at : null); }
+  function acceptGame(m, retained) {
     if (!m || typeof m.gid !== 'string' || !Array.isArray(m.qs) || !m.cfg || !Array.isArray(m.roster)) return false;
     if (!m.qs.every(function (id) { return OUH.byId[id]; })) return false;
     if (g) {
       if (m.gid === g.gid) { if (!(m.seq > g.seq || (m.seq === g.seq && m.by < g.by))) return false; }
-      else if (!(m.born > g.born)) return false;
+      else { // autre partie : numéro d'ordre le plus élevé, ou partie vivante reçue en direct alors que la mienne est finie
+        var a = m.no || 0, b = g.no || 0, at = rawTime(g), done = g.st === 'end' || (at != null && now() - at > DEAD_MS);
+        if (!(a > b || (a === b && m.gid < g.gid) || (!retained && m.st === 'play' && done))) return false;
+      }
     }
     g = m; gAcc = now(); LS.set('g.' + room, g);
     adopt();
@@ -137,7 +172,8 @@
   }
   function adopt() { // je suis dans la liste de départ d'une partie vivante → j'y participe
     if (!my || !g || g.st !== 'play' || my.gid === g.gid) return;
-    if (g.roster.indexOf(my.pid) < 0 || now() - gameTime(g) > DEAD_MS) return;
+    var at = rawTime(g);
+    if (g.roster.indexOf(my.pid) < 0 || (at != null && now() - at > DEAD_MS)) return;
     my.gid = g.gid; my.ans = []; my.rdy = -1; my.rec = null; pushMe();
   }
   function gamePids() { // tous ceux qui ont joué cette partie, triés par score
@@ -167,11 +203,12 @@
     if (!g) return { ph: 'none' };
     var t = now(), at = gameTime(g), dur = g.cfg.dur * 1000;
     if (g.st === 'end') return { ph: 'end' };
-    if (t - at > DEAD_MS) return { ph: 'none' };
+    if (at != null && t - at > DEAD_MS) return { ph: 'none' };
     if (!my || my.gid !== g.gid) {
       var alive = gamePids().some(function (p) { return (!my || p !== my.pid) && online(p); });
       return { ph: alive ? 'other' : 'none' };
     }
+    if (at == null) return { ph: 'sync' }; // on attend de connaître le décalage d'horloge avec les autres
     if (t < at) return { ph: 'count', left: at - t };
     if (ui.rev[g.gid + ':' + g.seq] || allAnswered() || t >= at + dur + 700) return { ph: 'reveal' };
     if (my.ans[g.qi]) return { ph: 'wait', left: Math.max(0, at + dur - t) };
@@ -235,33 +272,35 @@
   function missed() { var st = stats(my.pid); return Object.keys(st.q).filter(function (id) { return OUH.byId[id] && st.q[id][2] === 0; }); }
 
   /* ---------- actions de jeu ---------- */
-  function launch(cfg) {
+  function launch(cfg, sure) {
     var I = info();
-    if ((I.ph === 'other' || (I.ph !== 'none' && I.ph !== 'end')) && !confirm('Une partie est déjà en cours. En lancer une nouvelle pour tout le monde ?')) return;
+    if (!sure && I.ph !== 'none' && I.ph !== 'end') { ask('Partie en cours', 'Une partie est déjà en cours. En lancer une nouvelle pour tout le monde ?', 'Nouvelle partie', function () { launch(cfg, true); }); return; }
     var qs = pickQuestions(cfg);
     if (qs.length < 3) { toast('Pas assez de questions avec ces réglages.'); return; }
     var t = now(), roster = [my.pid].concat(Object.keys(players).filter(online));
-    var m = { gid: rid(8), seq: 1, by: my.pid, ts: t, born: t, st: 'play', cfg: { mode: cfg.mode, themes: cfg.themes, diff: cfg.diff, n: qs.length, dur: cfg.dur }, qs: qs, roster: roster, qi: 0, at: t + 5000 };
+    var m = { gid: rid(8), no: ((g && g.no) || 0) + 1, seq: 1, by: my.pid, bd: dev, ts: t, st: 'play', cfg: { mode: cfg.mode, themes: cfg.themes, diff: cfg.diff, n: qs.length, dur: cfg.dur }, qs: qs, roster: roster, qi: 0, at: t + 5000 };
     g = null; acceptGame(m); net.publish('g', null, m);
     closeSheet(); SFX.go(); tick();
   }
   function answer(c) {
     if (!g || !my || my.gid !== g.gid || g.st !== 'play' || my.ans[g.qi]) return;
-    var k = g.gid + ':' + g.qi, dur = g.cfg.dur * 1000, t = Math.max(0, Math.min(dur, now() - gameTime(g)));
+    var at = gameTime(g); if (at == null) return;
+    var k = g.gid + ':' + g.qi, dur = g.cfg.dur * 1000, t = Math.max(0, Math.min(dur, now() - at));
     var a = { c: c, t: c < 0 ? dur : t }, j = (ui.j5 === k ? '5' : '') + (ui.x2 === k ? 'x' : '');
     if (j) a.j = j;
     my.ans[g.qi] = a; pushMe();
   }
   function advance() {
     var t = now(), m = JSON.parse(JSON.stringify(g));
-    m.seq++; m.by = my.pid; m.ts = t;
+    m.seq++; m.by = my.pid; m.bd = dev; m.ts = t;
     if (g.qi + 1 >= g.qs.length) { m.st = 'end'; m.at = t; } else { m.qi = g.qi + 1; m.at = t + 3600; }
     if (acceptGame(m)) net.publish('g', null, m);
   }
-  function stopGame() {
-    if (!g || g.st !== 'play' || !confirm('Arrêter la partie pour tout le monde ?')) return;
+  function stopGame(sure) {
+    if (!g || g.st !== 'play') return;
+    if (!sure) { ask('Arrêter la partie ?', 'La partie s\'arrête pour tout le monde. Les points déjà gagnés sont gardés.', 'Arrêter', function () { stopGame(true); }); return; }
     var t = now(), m = JSON.parse(JSON.stringify(g));
-    m.seq++; m.by = my.pid; m.ts = t; m.st = 'end'; m.at = t; m.cut = 1;
+    m.seq++; m.by = my.pid; m.bd = dev; m.ts = t; m.st = 'end'; m.at = t; m.cut = 1;
     if (acceptGame(m)) net.publish('g', null, m);
     tick();
   }
@@ -310,7 +349,8 @@
     var c = custom(pid), st = stats(pid), saved = LS.get('my.' + pid), rank = OUH.rankIndex(st.xp);
     var cos = prefs.cos[pid], ci = OUH.RANKS.map(function (r) { return r.id; }).indexOf(cos);
     if (ci < 0 || ci > rank) cos = OUH.RANKS[rank].id;
-    my = { pid: pid, dev: dev, name: BUILTIN[pid] || c.name, cos: cos, xp: st.xp, jt: now(), ts: now(), gid: null, ans: [], rdy: -1, rec: null };
+    var gen = Math.max(players[pid] ? (players[pid].s.gen || 0) : 0, (saved && saved.gen) || 0) + 1; // « génération » : le dernier appareil entré l'emporte
+    my = { pid: pid, dev: dev, gen: gen, name: BUILTIN[pid] || c.name, cos: cos, xp: st.xp, jt: now(), ts: now(), gid: null, ans: [], rdy: -1, rec: null };
     if (c && c.emoji && !c.photo) my.em = c.emoji;
     if (saved && saved.gid && g && saved.gid === g.gid) { my.gid = saved.gid; my.ans = saved.ans || []; my.rdy = saved.rdy == null ? -1 : saved.rdy; my.rec = saved.rec || null; }
     delete players[pid];
@@ -321,6 +361,7 @@
   function leave(silent) {
     if (my && net && !silent) { my.bye = 1; pushMe(); }
     my = null; LS.set('me', null); ui.screen = 'home'; closeSheet(); tick();
+    if (net) net.publish('h', null, { dev: dev }, null, true);
   }
   var lock = null;
   function wake() { try { if (navigator.wakeLock && document.visibilityState === 'visible') navigator.wakeLock.request('screen').then(function (l) { lock = l; }).catch(function () { }); } catch (e) { } }
@@ -400,6 +441,7 @@
     var shown = I.ph === 'reveal' ? qi : qi - 1, k = g.gid + ':' + qi, mine = my.ans[qi];
     var bar = ['qbar', 'qbar', '<button class="icon" data-act="stop" aria-label="Arrêter la partie">✕</button><div class="dots">' + dotsHTML(shown) + '</div><div class="myscore">' + lire(scoreOf(my.pid, shown).total) + '</div>'];
     var strip = ['strip', 'strip', stripHTML(I, shown)];
+    if (I.ph === 'sync') return [bar, ['sync', 'count', '<p class="count-q">Synchronisation…</p><div class="count-n">⏳</div>'], strip];
     if (I.ph === 'count') {
       return [bar, ['count', 'count',
         '<p class="count-q">' + (qi === 0 ? 'Prêts ? ' : '') + 'Question <b>' + (qi + 1) + '</b>/' + n + '</p>' +
@@ -515,6 +557,10 @@
   var sheetEl = $('#sheet');
   function closeSheet() { ui.sheet = null; sheetEl.className = ''; sheetEl.innerHTML = ''; }
   function openSheet(html) { sheetEl.innerHTML = '<div class="sheet-bg" data-act="close"></div><div class="sheet-in">' + html + '</div>'; sheetEl.className = 'open'; }
+  function ask(title, text, ok, cb) { // question oui / non (les confirm() du navigateur sont parfois bloqués)
+    ui.ask = cb;
+    openSheet('<h2>' + esc(title) + '</h2><p class="askp">' + esc(text) + '</p><div class="row"><button class="btn" data-act="close"><span>Annuler</span></button><button class="btn primary" data-act="askok"><span>' + esc(ok) + '</span></button></div>');
+  }
   function seg(name, opts, val) { return '<div class="seg">' + opts.map(function (o) { return '<button data-act="set" data-k="' + name + '" data-v="' + o[0] + '" class="' + (String(o[0]) === String(val) ? 'on' : '') + '">' + o[1] + '</button>'; }).join('') + '</div>'; }
   function sheetCustom() {
     var c = ui.cfg = ui.cfg || { themes: THEMES.map(function (t) { return t.id; }), diff: 'prog', n: 10, dur: 20 };
@@ -559,16 +605,22 @@
 
   /* ---------- boucle ---------- */
   function tick() {
-    if (!my) { paint(viewHome()); return; }
+    try { tickNow(); } catch (e) {
+      if (window.console) console.error(e);
+      if (now() - (ui.errAt || 0) > 15000) { ui.errAt = now(); toast('Oups, petit bug : ' + (e && e.message ? e.message : e)); }
+    }
+  }
+  function tickNow() {
+    if (!my) { document.body.dataset.screen = 'home'; paint(viewHome()); return; }
     var t = now();
     if (g && g.st === 'play' && my.gid === g.gid) {
       var at = gameTime(g);
-      if (t >= at + g.cfg.dur * 1000 && !my.ans[g.qi] && t - at < DEAD_MS) answer(-1);
+      if (at != null && t >= at + g.cfg.dur * 1000 && !my.ans[g.qi] && t - at < DEAD_MS) answer(-1);
     }
     var I = info();
     if (I.ph === 'reveal') { onReveal(); driver(); I = info(); }
     if (I.ph === 'end' && my.gid === g.gid) credit();
-    var playing = I.ph === 'count' || I.ph === 'ask' || I.ph === 'wait' || I.ph === 'reveal';
+    var playing = I.ph === 'sync' || I.ph === 'count' || I.ph === 'ask' || I.ph === 'wait' || I.ph === 'reveal';
     if (playing) { if (ui.screen !== 'play') { ui.screen = 'play'; closeSheet(); } }
     else if (ui.screen === 'play') ui.screen = (I.ph === 'end' && my.gid === g.gid) ? 'end' : 'lobby';
     if (ui.screen === 'end' && I.ph !== 'end') ui.screen = 'lobby';
@@ -578,7 +630,7 @@
       if (I.ph === 'count') {
         var n = Math.ceil(I.left / 1000), el = $('#cnt');
         if (el && el.textContent !== String(n)) { el.textContent = n; el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); if (n <= 3) SFX.tick(); }
-      } else if (I.ph !== 'reveal') {
+      } else if (I.ph === 'ask' || I.ph === 'wait') {
         var tm = $('#timer'), dur = g.cfg.dur * 1000, sec = Math.ceil(I.left / 1000);
         if (tm) {
           tm.firstChild.style.width = (100 * I.left / dur).toFixed(1) + '%'; tm.lastChild.textContent = sec;
@@ -598,11 +650,15 @@
     var act = el.dataset.act, k = g ? g.gid + ':' + g.qi : '';
     switch (act) {
       case 'enter':
-        if (online(el.dataset.pid) && !confirm(nameOf(el.dataset.pid) + ' est déjà connecté sur un autre téléphone. Prendre sa place ?')) return;
-        enter(el.dataset.pid); break;
+        var who = el.dataset.pid;
+        if (online(who)) ask('Déjà en ligne', nameOf(who) + ' est déjà ouvert sur un autre appareil. Prendre sa place ici ? L\'autre appareil reviendra à l\'accueil.', 'Prendre la place', function () { enter(who); });
+        else enter(who);
+        break;
+      case 'askok': var cb = ui.ask; ui.ask = null; closeSheet(); if (cb) cb(); break;
       case 'del':
         ev.stopPropagation();
-        if (confirm('Supprimer ' + nameOf(el.dataset.pid) + ' de ce téléphone ?')) { customs = customs.filter(function (c) { return c.pid !== el.dataset.pid; }); LS.set('customs', customs); tick(); }
+        var gone = el.dataset.pid;
+        ask('Supprimer ce joueur ?', nameOf(gone) + ' sera retiré de cet appareil (son passeport aussi).', 'Supprimer', function () { customs = customs.filter(function (c) { return c.pid !== gone; }); LS.set('customs', customs); tick(); });
         break;
       case 'add': ui.add = null; sheetAdd(); break;
       case 'emoji': ui.add.name = $('#addname').value; ui.add.emoji = el.dataset.e; ui.add.photo = null; sheetAdd(); break;
@@ -614,15 +670,18 @@
         customs.push(c); LS.set('customs', customs); closeSheet(); enter(c.pid); break;
       case 'close': closeSheet(); break;
       case 'room':
-        var r = prompt('Code du salon (3 à 12 lettres ou chiffres). Tout le monde doit avoir le même :', room);
-        if (r && /^[A-Za-z0-9]{3,12}$/.test(r.trim())) { location.hash = 'salon=' + r.trim().toUpperCase(); location.reload(); }
-        else if (r) toast('Code invalide : 3 à 12 lettres ou chiffres.');
+        openSheet('<h2>Changer de salon</h2><p class="askp">Tout le monde doit saisir le même code : 3 à 12 lettres ou chiffres.</p><input id="roomcode" maxlength="12" autocomplete="off" autocapitalize="characters" value="' + esc(room) + '"><button class="btn big primary" data-act="roomok"><span>Rejoindre ce salon</span></button>');
+        break;
+      case 'roomok':
+        var r = $('#roomcode').value.trim();
+        if (/^[A-Za-z0-9]{3,12}$/.test(r)) { location.hash = 'salon=' + r.toUpperCase(); location.reload(); }
+        else toast('Code invalide : 3 à 12 lettres ou chiffres.');
         break;
       case 'share':
         var url = location.origin + location.pathname + (room === 'OUHMI' ? '' : '#salon=' + room);
         if (navigator.share) navigator.share({ title: 'Ouhmitalie', text: 'Rejoins-moi sur Ouhmitalie !', url: url }).catch(function () { });
         else if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { toast('Lien copié !'); });
-        else prompt('Lien à partager :', url);
+        else openSheet('<h2>Lien à partager</h2><input id="sharelink" readonly value="' + esc(url) + '"><button class="btn" data-act="close"><span>Fermer</span></button>');
         break;
       case 'net':
         toast(netUp ? 'En direct : relié à ' + netUp + ' serveur' + (netUp > 1 ? 's' : '') + ' sur ' + net.brokers.length + '. Un seul suffit !' : 'Hors ligne : aucun serveur joignable pour l\'instant. Le jeu réessaie tout seul ; en attendant, le solo fonctionne.');
@@ -643,7 +702,7 @@
       case 'golaunch': LS.set('cfg', ui.cfg); launch({ mode: 'custom', themes: ui.cfg.themes.slice(), diff: ui.cfg.diff, n: ui.cfg.n, dur: ui.cfg.dur }); break;
       case 'again': launch(g.cfg.mode === 'revise' && missed().length < 3 ? { mode: 'quick', themes: THEMES.map(function (t) { return t.id; }), diff: 'prog', n: 10, dur: 20 } : g.cfg); break;
       case 'join':
-        if (g && g.st === 'play') { my.gid = g.gid; my.ans = []; my.rdy = -1; my.rec = null; if (now() >= gameTime(g)) my.ans[g.qi] = { c: -2, t: 0 }; pushMe(); tick(); }
+        if (g && g.st === 'play') { var jat = gameTime(g); my.gid = g.gid; my.ans = []; my.rdy = -1; my.rec = null; if (jat == null || now() >= jat) my.ans[g.qi] = { c: -2, t: 0 }; pushMe(); tick(); }
         break;
       case 'stop': stopGame(); break;
       case 'ans': SFX.tap(); buzz(15); answer(+el.dataset.c); tick(); break;
@@ -665,7 +724,7 @@
   net = new OUH.Net({
     room: room, brokers: brokers || undefined, onMessage: onMessage,
     onStatus: function (n) { netUp = n; },
-    onUp: function (i) { if (my) { net.publish('p', my.pid, my, i); pushPhoto(i); } }
+    onUp: function (i) { if (my) { net.publish('p', my.pid, my, i); pushPhoto(i); } else net.publish('h', null, { dev: dev }, i, true); }
   });
   net.start();
   var last = LS.get('me', null);

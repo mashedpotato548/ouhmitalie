@@ -107,8 +107,9 @@
     });
   };
 
-  // kind : 'g' (partie) · 'p' (joueur) · 'a' (photo d'un joueur ajouté). only = index d'un seul broker.
-  Net.prototype.publish = function (kind, id, obj, only) {
+  // kind : 'g' (partie) · 'p' (joueur) · 'a' (photo d'un joueur ajouté) · 'h' (coucou). only = index d'un seul broker.
+  // volatile = message non conservé par le broker.
+  Net.prototype.publish = function (kind, id, obj, only, volatile) {
     var self = this;
     if (!self.base) return;
     var topic = self.base + '/' + kind + (id ? '/' + id : '');
@@ -116,7 +117,7 @@
       self.clients.forEach(function (c, i) {
         if (only != null && only !== i) return;
         if (!self.up[i]) return;
-        try { c.send(topic, payload, 0, true); } catch (e) { }
+        try { c.send(topic, payload, 0, !volatile); } catch (e) { }
       });
     }).catch(function () { });
   };
