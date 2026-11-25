@@ -373,3 +373,4 @@ h1.qcard { background: none; color: var(--ink); box-shadow: none; border-radius:
   .sp-h .bob-mini { --s: 28px; } .strip { min-height: 52px; padding-top: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom)); }
   .next { bottom: calc(52px + env(safe-area-inset-bottom)); }
 }
+.actor .tot { font-size: 12px; font-weight: 900; color: var(--muted); margin-top: 3px; white-space: nowrap; }

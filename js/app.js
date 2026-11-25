@@ -25,7 +25,7 @@
   var DIFF = ['', 'Facile', 'Moyen', 'Difficile'], STARS = ['', '★☆☆', '★★☆', '★★★'];
   var BUILTIN = { ali: 'Ali', simo: 'Simo', mona: 'Mona' }, ORDER = ['ali', 'simo', 'mona'];
   var EMOJIS = ['🦊', '🐼', '🦁', '🐸', '🐵', '🦄', '🐯', '🐨', '🐙', '🦉', '🤠', '😎'];
-  var VERSION = 6, REVEAL_MAX = 45000, ONLINE_MS = 12000, DEAD_MS = 30 * 60000;
+  var VERSION = 7, REVEAL_MAX = 45000, ONLINE_MS = 12000, DEAD_MS = 30 * 60000;
 
   var qp = new URLSearchParams(location.search);
   var room = ((location.hash.match(/salon=([A-Za-z0-9]{3,12})/) || [])[1] || qp.get('salon') || 'OUHMI').toUpperCase();
@@ -403,7 +403,7 @@
     var st = stats(my.pid), ri = OUH.rankIndex(st.xp), r = OUH.RANKS[ri], nx = OUH.RANKS[ri + 1];
     var stage = pids.map(function (p, i) {
       var s = stateOf(p), rk = OUH.RANKS[OUH.rankIndex(s.xp)];
-      return '<div class="actor" style="--i:' + i + '">' + bob(p, { cls: 'idle' }) + '<b>' + esc(nameOf(p)) + (p === my.pid ? ' <em>(toi)</em>' : '') + '</b><small>' + rk.emoji + ' ' + rk.name + '</small></div>';
+      return '<div class="actor" style="--i:' + i + '">' + bob(p, { cls: 'idle' }) + '<b>' + esc(nameOf(p)) + (p === my.pid ? ' <em>(toi)</em>' : '') + '</b><small>' + rk.emoji + ' ' + rk.name + '</small><span class="tot">' + lire(s.xp || 0) + '</span></div>';
     }).join('');
     var hint = pids.length === 1 ? '<p class="hint">Tu es seul·e dans le salon : envoie le lien aux autres, ou joue en solo.</p>' : '<p class="hint">' + pids.length + ' joueurs prêts. Celui qui lance la partie la lance pour tout le monde.</p>';
     var banner = I.ph === 'other' ? '<div class="banner"><span>🎬 Une partie est en cours (question ' + (g.qi + 1) + '/' + g.qs.length + ')</span><button class="btn small" data-act="join">Rejoindre</button></div>' : '';
