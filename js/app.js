@@ -570,7 +570,7 @@
     if (playing) { if (ui.screen !== 'play') { ui.screen = 'play'; closeSheet(); } }
     else if (ui.screen === 'play') ui.screen = (I.ph === 'end' && my.gid === g.gid) ? 'end' : 'lobby';
     if (ui.screen === 'end' && I.ph !== 'end') ui.screen = 'lobby';
-    document.body.dataset.screen = ui.screen;
+    if (document.body.dataset.screen !== ui.screen) { if (ui.screen !== 'end') $('#fx').innerHTML = ''; document.body.dataset.screen = ui.screen; }
     if (ui.screen === 'play') {
       paint(viewPlay(I));
       if (I.ph === 'count') {
