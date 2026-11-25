@@ -33,10 +33,10 @@
     var self = this, enc = new TextEncoder(), subtle = window.crypto && window.crypto.subtle;
     var ready = subtle
       ? Promise.all([
-        subtle.digest('SHA-256', enc.encode('ouhmitalie/cle/' + self.room)).then(function (d) { return subtle.importKey('raw', d, 'AES-GCM', false, ['encrypt', 'decrypt']); }),
-        subtle.digest('SHA-256', enc.encode('ouhmitalie/salon/' + self.room))
+        subtle.digest('SHA-256', enc.encode('ouhmitalie/v2/cle/' + self.room)).then(function (d) { return subtle.importKey('raw', d, 'AES-GCM', false, ['encrypt', 'decrypt']); }),
+        subtle.digest('SHA-256', enc.encode('ouhmitalie/v2/salon/' + self.room))
       ]).then(function (r) { self.key = r[0]; self.base = 'ouhm/' + hex(r[1]).slice(0, 20); })
-      : Promise.resolve().then(function () { self.base = 'ouhm/clair' + weakHash(self.room) + weakHash(self.room.split('').reverse().join('')); });
+      : Promise.resolve().then(function () { self.base = 'ouhm/clair2' + weakHash(self.room) + weakHash(self.room.split('').reverse().join('')); });
     return ready.then(function () {
       self.brokers.forEach(function (_, i) { self._connect(i); });
       document.addEventListener('visibilitychange', function () {

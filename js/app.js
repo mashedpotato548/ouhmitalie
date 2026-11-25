@@ -25,14 +25,14 @@
   var DIFF = ['', 'Facile', 'Moyen', 'Difficile'], STARS = ['', '★☆☆', '★★☆', '★★★'];
   var BUILTIN = { ali: 'Ali', simo: 'Simo', mona: 'Mona' }, ORDER = ['ali', 'simo', 'mona'];
   var EMOJIS = ['🦊', '🐼', '🦁', '🐸', '🐵', '🦄', '🐯', '🐨', '🐙', '🦉', '🤠', '😎'];
-  var REVEAL_MAX = 45000, ONLINE_MS = 12000, DEAD_MS = 30 * 60000;
+  var VERSION = 4, REVEAL_MAX = 45000, ONLINE_MS = 12000, DEAD_MS = 30 * 60000;
 
   var qp = new URLSearchParams(location.search);
   var room = ((location.hash.match(/salon=([A-Za-z0-9]{3,12})/) || [])[1] || qp.get('salon') || 'OUHMI').toUpperCase();
   var dev = LS.get('dev'); if (!dev) { dev = rid(10); LS.set('dev', dev); }
   var customs = LS.get('customs', []);
   var prefs = LS.get('prefs', { sound: true, cos: {} }); prefs.cos = prefs.cos || {};
-  var my = null, players = {}, photos = {}, off = {}, g = LS.get('g.' + room, null), gAcc = Date.now();
+  var my = null, players = {}, photos = {}, off = {}, g = LS.get('g2.' + room, null), gAcc = Date.now();
   var net = null, netUp = 0;
   var ui = { screen: 'home', rev: {}, adv: null, sheet: null, cfg: LS.get('cfg', null), gain: null, lastTick: -1 };
 
@@ -125,6 +125,7 @@
       if (m.dev === dev) return;
       if (!(mg > my.gen || (mg === my.gen && m.dev > dev))) return;
       if (m.bye || (retained && t - my.jt < 8000)) { my.gen = mg + 1; pushMe(); return; } // vieil état laissé par un autre appareil
+      if (retained) { if (!ui.doubt) ui.doubt = { gen: mg, t: t }; else ui.doubt.gen = Math.max(ui.doubt.gen, mg); return; } // peut-être périmé : on attend un message en direct
       toast('« ' + my.name + ' » est maintenant ouvert sur un autre appareil.'); leave(true);
       return;
     }
@@ -166,7 +167,7 @@
         if (!(a > b || (a === b && m.gid < g.gid) || (!retained && m.st === 'play' && done))) return false;
       }
     }
-    g = m; gAcc = now(); LS.set('g.' + room, g);
+    g = m; gAcc = now(); LS.set('g2.' + room, g);
     adopt();
     return true;
   }
@@ -215,8 +216,7 @@
     return { ph: 'ask', left: Math.max(0, at + dur - t) };
   }
   function order(qi) { return shuffle([0, 1, 2, 3], rng(g.gid + ':' + qi)); }
-  function hidden(qi) { return shuffle([1, 2, 3], rng(g.gid + ':' + qi + ':' + my.pid)).slice(0, 2); }
-  function jokerUsed(k) { return (my.ans || []).some(function (a) { return a && a.j && a.j.indexOf(k) >= 0; }); }
+  function isX2(i) { return !!(g && g.x2 && g.x2.indexOf(i) >= 0); } // « question double » tirée au sort au lancement
 
   function scoreOf(pid, upto) {
     var s = stateOf(pid), res = { total: 0, per: [], best: 0, ok: 0, time: 0 };
@@ -227,7 +227,7 @@
       if (a && a.c === 0) {
         streak++;
         p.ok = true; p.base = 100 * q.d; p.speed = Math.round(p.base * 0.5 * Math.max(0, 1 - a.t / dur));
-        p.streak = Math.min(100, 25 * (streak - 1)); p.x2 = !!(a.j && a.j.indexOf('x') >= 0);
+        p.streak = Math.min(100, 25 * (streak - 1)); p.x2 = isX2(i);
         p.pts = (p.base + p.speed + p.streak) * (p.x2 ? 2 : 1);
         res.ok++; res.time += a.t;
       } else streak = 0;
@@ -278,17 +278,17 @@
     var qs = pickQuestions(cfg);
     if (qs.length < 3) { toast('Pas assez de questions avec ces réglages.'); return; }
     var t = now(), roster = [my.pid].concat(Object.keys(players).filter(online));
-    var m = { gid: rid(8), no: ((g && g.no) || 0) + 1, seq: 1, by: my.pid, bd: dev, ts: t, st: 'play', cfg: { mode: cfg.mode, themes: cfg.themes, diff: cfg.diff, n: qs.length, dur: cfg.dur }, qs: qs, roster: roster, qi: 0, at: t + 5000 };
+    var idx = []; for (var i = 1; i < qs.length; i++) idx.push(i); // une question double toutes les 5 questions environ, jamais la première
+    var x2 = shuffle(idx).slice(0, Math.max(1, Math.round(qs.length / 5))).sort(function (a, b) { return a - b; });
+    var m = { gid: rid(8), x2: x2, no: ((g && g.no) || 0) + 1, seq: 1, by: my.pid, bd: dev, ts: t, st: 'play', cfg: { mode: cfg.mode, themes: cfg.themes, diff: cfg.diff, n: qs.length, dur: cfg.dur }, qs: qs, roster: roster, qi: 0, at: t + 5000 };
     g = null; acceptGame(m); net.publish('g', null, m);
     closeSheet(); SFX.go(); tick();
   }
   function answer(c) {
     if (!g || !my || my.gid !== g.gid || g.st !== 'play' || my.ans[g.qi]) return;
     var at = gameTime(g); if (at == null) return;
-    var k = g.gid + ':' + g.qi, dur = g.cfg.dur * 1000, t = Math.max(0, Math.min(dur, now() - at));
-    var a = { c: c, t: c < 0 ? dur : t }, j = (ui.j5 === k ? '5' : '') + (ui.x2 === k ? 'x' : '');
-    if (j) a.j = j;
-    my.ans[g.qi] = a; pushMe();
+    var dur = g.cfg.dur * 1000, t = Math.max(0, Math.min(dur, now() - at));
+    my.ans[g.qi] = { c: c, t: c < 0 ? dur : t }; pushMe();
   }
   function advance() {
     var t = now(), m = JSON.parse(JSON.stringify(g));
@@ -390,7 +390,7 @@
     return [
       ['hero', 'hero', '<img class="logo" src="assets/logo.svg" alt="Ouhmitalie"><p class="tagline">Qui veut gagner des millions… <b>de lires</b> ?</p>'],
       ['pick', 'panel', '<h2>Qui es-tu ?</h2><div class="pick-grid">' + cards + '<button class="pick add" data-act="add"><span class="plus">＋</span><b>Ajouter</b><small>un joueur</small></button></div>'],
-      ['foot', 'foot', '<span>Salon <b>' + esc(room) + '</b></span>' + netChip() + '<button class="link" data-act="room">Changer de salon</button>']
+      ['foot', 'foot', '<span>Salon <b>' + esc(room) + '</b></span>' + netChip() + '<button class="link" data-act="room">Changer de salon</button><span class="ver">version ' + VERSION + '</span>']
     ];
   }
 
@@ -412,7 +412,7 @@
         '<div class="row"><button class="btn" data-act="custom"><span>🎛️ Sur mesure</span><small>thèmes, niveau, durée</small></button>' +
         '<button class="btn" data-act="revise"' + (nm < 3 ? ' disabled' : '') + '><span>🔁 Mes erreurs</span><small>' + (nm < 3 ? 'rien à réviser' : nm + ' à revoir') + '</small></button></div>'],
       ['me', 'panel mecard', '<button class="mecard-in" data-act="passport"><div class="rank"><span class="rank-e">' + r.emoji + '</span><div><b>' + r.name + '</b><small>' + lire(st.xp) + (nx ? ' · encore ' + lire(nx.xp - st.xp) + ' → ' + nx.name : ' · rang maximum !') + '</small></div><span class="chev">📔 Passeport ›</span></div><div class="bar"><i style="width:' + pct + '%"></i></div></button>'],
-      ['foot', 'foot', '<button class="link" data-act="share">📲 Inviter (salon ' + esc(room) + ')</button><button class="link" data-act="logout">Changer de joueur</button>']
+      ['foot', 'foot', '<button class="link" data-act="share">📲 Inviter (salon ' + esc(room) + ')</button><button class="link" data-act="logout">Changer de joueur</button><span class="ver">version ' + VERSION + '</span>']
     ];
   }
 
@@ -429,7 +429,7 @@
   function dotsHTML(shown) {
     var mine = scoreOf(my.pid, shown).per, s = '';
     for (var i = 0; i < g.qs.length; i++) {
-      var q = OUH.byId[g.qs[i]], cls = 'd' + q.d;
+      var q = OUH.byId[g.qs[i]], cls = 'd' + q.d + (isX2(i) ? ' x2' : '');
       if (i <= shown) cls += mine[i] && mine[i].ok ? ' ok' : ' ko'; else if (i === g.qi) cls += ' cur';
       s += '<i class="' + cls + '"></i>';
     }
@@ -438,7 +438,7 @@
 
   function viewPlay(I) {
     var qi = g.qi, q = OUH.byId[g.qs[qi]], th = THEME[q.t] || { name: q.t, emoji: '❓', col: '#ddd' }, n = g.qs.length;
-    var shown = I.ph === 'reveal' ? qi : qi - 1, k = g.gid + ':' + qi, mine = my.ans[qi];
+    var shown = I.ph === 'reveal' ? qi : qi - 1, mine = my.ans[qi], dbl = isX2(qi);
     var bar = ['qbar', 'qbar', '<button class="icon" data-act="stop" aria-label="Arrêter la partie">✕</button><div class="dots">' + dotsHTML(shown) + '</div><div class="myscore">' + lire(scoreOf(my.pid, shown).total) + '</div>'];
     var strip = ['strip', 'strip', stripHTML(I, shown)];
     if (I.ph === 'sync') return [bar, ['sync', 'count', '<p class="count-q">Synchronisation…</p><div class="count-n">⏳</div>'], strip];
@@ -446,25 +446,25 @@
       return [bar, ['count', 'count',
         '<p class="count-q">' + (qi === 0 ? 'Prêts ? ' : '') + 'Question <b>' + (qi + 1) + '</b>/' + n + '</p>' +
         '<div class="count-card" style="--c:' + th.col + '"><span class="big-emo">' + th.emoji + '</span><b>' + th.name + '</b><span>' + STARS[q.d] + ' ' + DIFF[q.d] + ' · ' + lire(100 * q.d) + '</span></div>' +
+        (dbl ? '<div class="x2flag">⭐ Question double ×2</div>' : '') +
         '<div class="count-n" id="cnt"></div>'], strip];
     }
-    var reveal = I.ph === 'reveal', gone = ui.j5 === k ? hidden(qi) : [], LET = 'ABCD';
+    var reveal = I.ph === 'reveal', LET = 'ABCD';
     var who = {};
     if (reveal) gamePids().forEach(function (p) { var a = ansOf(p, qi); if (a && a.c >= 0) (who[a.c] = who[a.c] || []).push(p); });
     var answers = order(qi).map(function (c, i) {
       var cls = 'ans a' + i;
       if (mine && mine.c === c) cls += ' sel';
       if (reveal) cls += c === 0 ? ' good' : (mine && mine.c === c ? ' bad' : ' dim');
-      else if (gone.indexOf(c) >= 0) cls += ' gone';
-      var lock = reveal || mine || gone.indexOf(c) >= 0;
+      var lock = reveal || mine;
       return '<button class="' + cls + '" data-act="ans" data-c="' + c + '"' + (lock ? ' disabled' : '') + '><span class="letter">' + LET[i] + '</span><span class="txt">' + esc(q.a[c]) + '</span>' +
         (who[c] ? '<span class="who">' + who[c].map(function (p) { return mini(p); }).join('') + '</span>' : '') + '</button>';
     }).join('');
-    var meta = '<div class="meta"><span class="chip" style="background:' + th.col + '">' + th.emoji + ' ' + th.name + '</span><span class="chip ghost">' + STARS[q.d] + ' ' + lire(100 * q.d) + '</span><span class="chip ghost">' + (qi + 1) + '/' + n + '</span></div>';
+    var meta = '<div class="meta"><span class="chip" style="background:' + th.col + '">' + th.emoji + ' ' + th.name + '</span><span class="chip ghost">' + STARS[q.d] + ' ' + lire(100 * q.d) + '</span>' + (dbl ? '<span class="chip x2">⭐ ×2</span>' : '') + '<span class="chip ghost">' + (qi + 1) + '/' + n + '</span></div>';
     var under, next = '';
     if (reveal) {
       var per = scoreOf(my.pid, qi).per[qi] || { ok: false }, res;
-      if (per.ok) res = '<div class="result good"><b>✓ Bravo ! +' + lire(per.pts) + '</b><small>' + per.base + (per.speed ? ' + ' + per.speed + ' rapidité' : '') + (per.streak ? ' + ' + per.streak + ' série 🔥' : '') + (per.x2 ? ' — le tout ×2 !' : '') + '</small></div>';
+      if (per.ok) res = '<div class="result good"><b>✓ Bravo ! +' + lire(per.pts) + '</b><small>' + per.base + (per.speed ? ' + ' + per.speed + ' rapidité' : '') + (per.streak ? ' + ' + per.streak + ' série 🔥' : '') + (per.x2 ? ' — question double : ×2 !' : '') + '</small></div>';
       else if (!mine || mine.c === -2) res = '<div class="result bad"><b>👀 Tu regardes cette question</b></div>';
       else res = '<div class="result bad"><b>' + (mine.c < 0 ? '⏰ Trop tard !' : '✗ Raté !') + '</b><small>La bonne réponse : ' + esc(q.a[0]) + '</small></div>';
       var rdy = my.rdy >= qi, waiting = notReady().map(nameOf);
@@ -475,9 +475,7 @@
     } else if (mine) {
       under = '<p class="waitmsg">🔒 Réponse verrouillée — on attend les autres…</p>';
     } else {
-      var u5 = jokerUsed('5') || ui.j5 === k, ux = jokerUsed('x');
-      under = '<div class="jokers"><button class="joker' + (ui.j5 === k ? ' on' : '') + '" data-act="j5"' + (u5 ? ' disabled' : '') + '><b>50:50</b><small>enlève 2 erreurs</small></button>' +
-        '<button class="joker' + (ui.x2 === k ? ' on' : '') + '" data-act="x2"' + (ux ? ' disabled' : '') + '><b>×2</b><small>' + (ui.x2 === k ? 'activé !' : 'double les points') + '</small></button></div>';
+      under = dbl ? '<p class="x2hint">⭐ Question double : les points comptent ×2 !</p>' : '';
     }
     if (reveal) return [bar,
       ['q' + qi + 'r', 'play compact', '<div class="qcard">' + esc(q.q) + '</div>'],
@@ -549,7 +547,7 @@
       ['pst', 'panel', '<h2>Tampons</h2><p class="hint">Une question réussie au moins une fois = une case de gagnée. 🥉 20 % · 🥈 50 % · 🥇 80 %</p><div class="stamps">' + stamps + '</div>'],
       ['pward', 'panel', '<h2>Garde-robe</h2><div class="wardrobe">' + ward + '</div>'],
       ['pnum', 'panel', '<h2>En chiffres</h2><div class="nums"><div><b>' + st.games + '</b><small>parties</small></div><div><b>' + st.wins + '</b><small>victoires</small></div><div><b>' + st.best + '</b><small>meilleure série</small></div><div><b>' + (tries ? Math.round(100 * rights / tries) : 0) + ' %</b><small>de réussite</small></div><div><b>' + okN + '/' + OUH.Q.length + '</b><small>questions maîtrisées</small></div></div>'],
-      ['foot', 'foot', '<button class="link" data-act="logout">Changer de joueur</button>']
+      ['foot', 'foot', '<button class="link" data-act="resetme">🗑️ Remettre mes stats à zéro</button><button class="link" data-act="logout">Changer de joueur</button>']
     ];
   }
 
@@ -605,14 +603,20 @@
 
   /* ---------- boucle ---------- */
   function tick() {
-    try { tickNow(); } catch (e) {
-      if (window.console) console.error(e);
-      if (now() - (ui.errAt || 0) > 15000) { ui.errAt = now(); toast('Oups, petit bug : ' + (e && e.message ? e.message : e)); }
-    }
+    try { tickNow(); } catch (e) { oops(e); }
   }
+  function oops(e) { // toute erreur est affichée plutôt que de laisser l'écran figé sans explication
+    var msg = String(e && e.message ? e.message : e).slice(0, 160);
+    if (window.console) console.error(e);
+    ui.lastErr = msg;
+    if (now() - (ui.errAt || 0) > 15000) { ui.errAt = now(); try { toast('Oups, petit bug : ' + msg); } catch (x) { } }
+  }
+  window.addEventListener('error', function (ev) { oops(ev.error || ev.message); });
+  window.addEventListener('unhandledrejection', function (ev) { oops(ev.reason); });
   function tickNow() {
-    if (!my) { document.body.dataset.screen = 'home'; paint(viewHome()); return; }
+    if (!my) { document.body.dataset.screen = 'home'; ui.doubt = null; paint(viewHome()); return; }
     var t = now();
+    if (ui.doubt && t - ui.doubt.t > 7000) { my.gen = Math.max(my.gen, ui.doubt.gen + 1); ui.doubt = null; pushMe(); } // personne d'autre ne s'est manifesté
     if (g && g.st === 'play' && my.gid === g.gid) {
       var at = gameTime(g);
       if (at != null && t >= at + g.cfg.dur * 1000 && !my.ans[g.qi] && t - at < DEAD_MS) answer(-1);
@@ -645,8 +649,9 @@
   }
 
   /* ---------- événements ---------- */
-  document.addEventListener('click', function (ev) {
-    var el = ev.target.closest('[data-act]'); if (!el || el.disabled) return;
+  document.addEventListener('click', function (ev) { try { onClick(ev); } catch (e) { oops(e); } });
+  function onClick(ev) {
+    var el = ev.target && ev.target.closest ? ev.target.closest('[data-act]') : null; if (!el || el.disabled) return;
     var act = el.dataset.act, k = g ? g.gid + ':' + g.qi : '';
     switch (act) {
       case 'enter':
@@ -684,10 +689,22 @@
         else openSheet('<h2>Lien à partager</h2><input id="sharelink" readonly value="' + esc(url) + '"><button class="btn" data-act="close"><span>Fermer</span></button>');
         break;
       case 'net':
-        toast(netUp ? 'En direct : relié à ' + netUp + ' serveur' + (netUp > 1 ? 's' : '') + ' sur ' + net.brokers.length + '. Un seul suffit !' : 'Hors ligne : aucun serveur joignable pour l\'instant. Le jeu réessaie tout seul ; en attendant, le solo fonctionne.');
+        var on = Object.keys(players).filter(online).map(nameOf);
+        openSheet('<h2>' + (netUp ? '● En direct' : '○ Hors ligne') + '</h2><p class="askp">' +
+          (netUp ? 'Relié à ' + netUp + ' serveur' + (netUp > 1 ? 's' : '') + ' sur ' + net.brokers.length + ' (un seul suffit).' : 'Aucun serveur joignable pour l\'instant. Le jeu réessaie tout seul ; en attendant, le solo fonctionne.') + '</p>' +
+          '<p class="diag">version ' + VERSION + ' · salon ' + esc(room) + ' · appareil ' + esc(dev.slice(0, 4)) + '<br>moi : ' + (my ? esc(my.name) + ' (n° ' + my.gen + ')' : 'personne') +
+          '<br>en ligne : ' + (on.length ? esc(on.join(', ')) : 'personne d\'autre') + '<br>partie : ' + (g ? esc(g.st) + ' q' + (g.qi + 1) + ' · ' + esc(info().ph) : 'aucune') +
+          (ui.lastErr ? '<br>dernière erreur : ' + esc(ui.lastErr) : '') + '</p><button class="btn" data-act="close"><span>Fermer</span></button>');
         break;
       case 'sound': prefs.sound = !prefs.sound; LS.set('prefs', prefs); SFX.tap(); tick(); break;
       case 'logout': leave(); break;
+      case 'resetme':
+        ask('Remettre à zéro ?', 'Les lires, le rang, les tampons et les erreurs à réviser de ' + my.name + ' seront effacés sur cet appareil. Impossible de revenir en arrière.', 'Tout effacer', function () {
+          LS.set('st.' + my.pid, { xp: 0, games: 0, wins: 0, best: 0, q: {}, done: stats(my.pid).done || [] }); // on garde la liste des parties déjà comptées, pour ne pas recréditer la dernière
+          delete prefs.cos[my.pid]; LS.set('prefs', prefs);
+          my.xp = 0; my.cos = OUH.RANKS[0].id; ui.gain = null; pushMe(); toast('Passeport remis à zéro.'); tick();
+        });
+        break;
       case 'passport': ui.screen = 'passport'; layout = ''; tick(); break;
       case 'lobby': ui.screen = 'lobby'; tick(); break;
       case 'cos': my.cos = el.dataset.cos; prefs.cos[my.pid] = my.cos; LS.set('prefs', prefs); pushMe(); SFX.tap(); tick(); break;
@@ -706,11 +723,9 @@
         break;
       case 'stop': stopGame(); break;
       case 'ans': SFX.tap(); buzz(15); answer(+el.dataset.c); tick(); break;
-      case 'j5': ui.j5 = k; SFX.go(); tick(); break;
-      case 'x2': ui.x2 = ui.x2 === k ? null : k; SFX.go(); tick(); break;
       case 'ready': my.rdy = g.qi; pushMe(); SFX.tap(); tick(); break;
     }
-  });
+  }
   document.addEventListener('change', function (ev) {
     if (ev.target.id !== 'addphoto' || !ev.target.files[0]) return;
     ui.add.name = $('#addname').value;

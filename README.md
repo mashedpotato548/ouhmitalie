@@ -42,13 +42,13 @@ Ensuite, envoie l'adresse à tout le monde. Sur le téléphone : menu du navigat
    La question suivante arrive quand tout le monde a touché « Question suivante » (ou après 45 s).
 
 **Points (en lires)** : 100 / 200 / 300 selon le niveau, + jusqu'à 50 % de bonus de rapidité, + bonus de série (25 lires par bonne réponse d'affilée, 100 max).
-**Jokers**, une fois par partie chacun : **50:50** (enlève deux mauvaises réponses) et **×2** (double les points de la question — à activer avant de répondre).
+**Questions doubles** : à chaque partie, le jeu tire au sort environ une question sur cinq qui compte ×2 pour tout le monde (annoncée par ⭐).
 
 Bon à savoir :
 - Pas de réseau ? Le jeu marche en **solo hors ligne** une fois la page chargée.
 - Un téléphone qui se verrouille ou quitte la page ne bloque pas les autres ; on reprend la partie en rouvrant la page.
 - Par défaut tout le monde est dans le salon `OUHMI`. « Changer de salon » permet de choisir un autre code (à partager).
-- La progression (passeport) est enregistrée sur chaque téléphone, dans le navigateur.
+- La progression (passeport) est enregistrée sur chaque téléphone, dans le navigateur. « Remettre mes stats à zéro », en bas du passeport, efface celle du joueur sur cet appareil.
 
 ## Ajouter ou corriger des questions
 
