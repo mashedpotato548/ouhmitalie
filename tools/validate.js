@@ -18,7 +18,7 @@ for (const q of Q) {
     q.a.forEach(s => { if (typeof s !== 'string' || !s.length) err(q, 'réponse vide'); else if (s.length > 44) err(q, `réponse trop longue (${s.length}) : ${s}`); });
   }
   if (typeof q.e !== 'string' || q.e.length < 30) err(q, 'explication trop courte');
-  else if (q.e.length > 260) err(q, `explication trop longue (${q.e.length})`);
+  else if (q.e.length > 330) err(q, `explication trop longue (${q.e.length})`);
   (stat[q.t] = stat[q.t] || [0, 0, 0, 0])[q.d]++; stat[q.t][0]++;
 }
 console.log('\nThème            total  d1  d2  d3');

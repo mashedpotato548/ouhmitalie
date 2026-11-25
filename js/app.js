@@ -38,7 +38,7 @@
 
   /* ---------- petits utilitaires ---------- */
   function fmt(n) { return Math.round(n).toLocaleString('fr-FR').replace(/ | /g, ' '); }
-  function lire(n) { return fmt(n) + ' ₤'; }
+  function lire(n) { return fmt(n) + (Math.round(n) === 1 ? ' lire' : ' lires'); }
   function hash(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
   function rng(seed) { var a = hash(seed); return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
   function shuffle(arr, rnd) { rnd = rnd || Math.random; var a = arr.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(rnd() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
@@ -339,10 +339,10 @@
   function netChip() { return '<button class="net ' + (netUp ? 'on' : 'offl') + '" data-act="net">' + (netUp ? '● En direct' : '○ Hors ligne') + '</button>'; }
 
   function viewHome() {
-    var cards = ORDER.concat(customs.map(function (c) { return c.pid; })).map(function (pid) {
+    var cards = ORDER.concat(customs.map(function (c) { return c.pid; })).map(function (pid, i) {
       var on = online(pid), st = stats(pid), r = OUH.RANKS[OUH.rankIndex(st.xp)];
       var cos = (players[pid] && on) ? cosOf(pid) : (prefs.cos[pid] || r.id);
-      return '<button class="pick" data-act="enter" data-pid="' + pid + '">' + bob(pid, { cos: cos, cls: 'idle' }) +
+      return '<button class="pick" style="--i:' + i + '" data-act="enter" data-pid="' + pid + '">' + bob(pid, { cos: cos, cls: 'idle' }) +
         '<b>' + esc(nameOf(pid)) + '</b><small>' + r.emoji + ' ' + r.name + '</small>' + (on ? '<i class="live">en ligne</i>' : '') +
         (custom(pid) ? '<span class="del" data-act="del" data-pid="' + pid + '" title="Supprimer">✕</span>' : '') + '</button>';
     }).join('');
@@ -376,12 +376,12 @@
   }
 
   function stripHTML(I, shown) {
-    var rk = ranking(shown), reveal = I.ph === 'reveal';
+    var rk = ranking(shown), reveal = I.ph === 'reveal', hot = reveal && now() - (ui.rev[g.gid + ':' + g.seq] || 0) < 1400;
     return rk.map(function (r) {
       var a = ansOf(r.pid, g.qi), s = stateOf(r.pid), per = reveal ? r.sc.per[g.qi] : null, badge = '';
       if (I.ph === 'ask' || I.ph === 'wait') badge = a ? '<i class="bdg ok">✓</i>' : '<i class="bdg think">…</i>';
       else if (reveal) badge = (s.rdy >= g.qi) ? '<i class="bdg ok">👍</i>' : (per && per.ok ? '<i class="bdg ok">✓</i>' : '<i class="bdg ko">✗</i>');
-      return '<div class="sp' + (r.pid === my.pid ? ' me' : '') + (online(r.pid) ? '' : ' away') + '"><span class="sp-h">' + mini(r.pid) + badge + '</span><b>' + esc(nameOf(r.pid)) + '</b><span class="sp-s">' + fmt(r.sc.total) + '</span>' +
+      return '<div class="sp' + (r.pid === my.pid ? ' me' : '') + (online(r.pid) ? '' : ' away') + (hot && a ? (per && per.ok ? ' hop' : ' wob') : '') + '"><span class="sp-h">' + mini(r.pid) + badge + '</span><b>' + esc(nameOf(r.pid)) + '</b><span class="sp-s">' + fmt(r.sc.total) + '</span>' +
         (per && per.pts ? '<span class="sp-d">+' + fmt(per.pts) + '</span>' : '') + '</div>';
     }).join('');
   }
@@ -452,6 +452,8 @@
 
   function viewEnd() {
     var rk = ranking(g.qi), n = g.qs.length, top = rk.slice(0, 3), podium = '';
+    if (!ui.endAt || ui.endAt.k !== g.gid) ui.endAt = { k: g.gid, t: now() };
+    var intro = now() - ui.endAt.t < 2600 ? ' intro' : ''; // le podium ne se dévoile qu'une fois
     [1, 0, 2].forEach(function (i) {
       var r = top[i]; if (!r) return;
       podium += '<div class="pod p' + (i + 1) + '">' + bob(r.pid, { cls: i === 0 ? 'jump' : 'idle' }) + '<b>' + esc(nameOf(r.pid)) + '</b><span class="pod-s">' + lire(r.sc.total) + '</span><div class="pod-b"><span>' + ['🥇', '🥈', '🥉'][i] + '</span><small>' + r.sc.ok + '/' + n + '</small></div></div>';
@@ -478,8 +480,8 @@
     }).join('');
     return [
       ['etop', 'top', '<img class="logo-s" src="assets/logo.svg" alt="Ouhmitalie"><span class="grow"></span>' + netChip()],
-      ['pod', 'endpod', '<h1>' + (g.cut ? 'Partie arrêtée' : 'Classement final') + '</h1><div class="podium n' + top.length + '">' + podium + '</div>' + rest],
-      ['aw', 'endinfo', awards + gain],
+      ['pod', 'endpod', '<h1>' + (g.cut ? 'Partie arrêtée' : 'Classement final') + '</h1><div class="podium n' + top.length + intro + '">' + podium + '</div>' + rest],
+      ['aw', 'endinfo', '<div class="endinfo-in' + intro + '">' + awards + gain + '</div>'],
       ['again', 'actions', '<button class="btn big primary" data-act="again"><span>🔁 Rejouer</span><small>mêmes réglages, nouvelles questions</small></button><button class="btn" data-act="lobby"><span>Retour au salon</span></button>'],
       ['rev', 'panel', '<details class="review"><summary>📚 Revoir les questions et les explications</summary><ol>' + review + '</ol></details>']
     ];
@@ -490,7 +492,7 @@
     var pct = nx ? Math.round(100 * (st.xp - r.xp) / (nx.xp - r.xp)) : 100;
     var ward = OUH.RANKS.map(function (k, i) {
       var open = i <= ri;
-      return '<button class="cos' + (open ? '' : ' locked') + (my.cos === k.id ? ' on' : '') + '" data-act="cos" data-cos="' + k.id + '"' + (open ? '' : ' disabled') + '>' + bob(my.pid, { cos: k.id }) + '<b>' + k.name + '</b><small>' + (open ? (my.cos === k.id ? 'porté' : 'débloqué') : '🔒 ' + lire(k.xp)) + '</small></button>';
+      return '<button class="cos' + (open ? '' : ' locked') + (my.cos === k.id ? ' on' : '') + '" data-act="cos" data-cos="' + k.id + '"' + (open ? '' : ' disabled') + '>' + bob(my.pid, { cos: k.id }) + '<b>' + k.name + '</b><small>' + (open ? (my.cos === k.id ? 'porté' : 'débloqué') : '🔒 ' + fmt(k.xp)) + '</small></button>';
     }).join('');
     var seenN = 0, okN = 0, tries = 0, rights = 0;
     Object.keys(st.q).forEach(function (id) { if (!OUH.byId[id]) return; seenN++; if (st.q[id][1] > 0) okN++; tries += st.q[id][0]; rights += st.q[id][1]; });

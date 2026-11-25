@@ -41,7 +41,7 @@ Ensuite, envoie l'adresse à tout le monde. Sur le téléphone : menu du navigat
 3. À chaque question : 4 réponses, un chrono commun. Puis la bonne réponse, qui a répondu quoi, et l'explication.
    La question suivante arrive quand tout le monde a touché « Question suivante » (ou après 45 s).
 
-**Points (en lires ₤)** : 100 / 200 / 300 selon le niveau, + jusqu'à 50 % de bonus de rapidité, + bonus de série (25 ₤ par bonne réponse d'affilée, 100 max).
+**Points (en lires)** : 100 / 200 / 300 selon le niveau, + jusqu'à 50 % de bonus de rapidité, + bonus de série (25 lires par bonne réponse d'affilée, 100 max).
 **Jokers**, une fois par partie chacun : **50:50** (enlève deux mauvaises réponses) et **×2** (double les points de la question — à activer avant de répondre).
 
 Bon à savoir :
