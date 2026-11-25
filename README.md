@@ -49,6 +49,7 @@ Bon à savoir :
 - Un téléphone qui se verrouille ou quitte la page ne bloque pas les autres ; on reprend la partie en rouvrant la page.
 - Par défaut tout le monde est dans le salon `OUHMI`. « Changer de salon » permet de choisir un autre code (à partager).
 - **Les points sont gardés d'un jour à l'autre**, sans compte : le passeport (lires, rang, tampons, erreurs à revoir) est enregistré dans le navigateur de chaque téléphone. Il faut donc rejouer depuis le même téléphone et le même navigateur ; la navigation privée ne garde rien, et effacer les données du navigateur efface le passeport. « Remettre mes stats à zéro », en bas du passeport, efface celui du joueur sur cet appareil.
+- **Pas de redite** : le jeu retient les questions déjà posées à chaque joueur et sert d'abord celles qu'aucun joueur présent n'a encore eues (environ 32 parties de 10 questions avant la première redite). Cette mémoire est gardée même après une remise à zéro des stats ; seul le mode « Mes erreurs » repose volontairement des questions.
 - Le numéro de version est affiché en bas de l'accueil ; toucher la pastille « ● En direct » montre l'état de la connexion.
 
 ## Ajouter ou corriger des questions

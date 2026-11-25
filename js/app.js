@@ -25,7 +25,7 @@
   var DIFF = ['', 'Facile', 'Moyen', 'Difficile'], STARS = ['', '★☆☆', '★★☆', '★★★'];
   var BUILTIN = { ali: 'Ali', simo: 'Simo', mona: 'Mona' }, ORDER = ['ali', 'simo', 'mona'];
   var EMOJIS = ['🦊', '🐼', '🦁', '🐸', '🐵', '🦄', '🐯', '🐨', '🐙', '🦉', '🤠', '😎'];
-  var VERSION = 7, REVEAL_MAX = 45000, ONLINE_MS = 12000, DEAD_MS = 30 * 60000;
+  var VERSION = 8, REVEAL_MAX = 45000, ONLINE_MS = 12000, DEAD_MS = 30 * 60000;
 
   var qp = new URLSearchParams(location.search);
   var room = ((location.hash.match(/salon=([A-Za-z0-9]{3,12})/) || [])[1] || qp.get('salon') || 'OUHMI').toUpperCase();
@@ -42,7 +42,22 @@
   function hash(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
   function rng(seed) { var a = hash(seed); return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
   function shuffle(arr, rnd) { rnd = rnd || Math.random; var a = arr.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(rnd() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
-  function stats(pid) { var s = LS.get('st.' + pid); if (!s || !s.q) s = { xp: 0, games: 0, wins: 0, best: 0, q: {}, done: [] }; return s; }
+  function stats(pid) {
+    var s = LS.get('st.' + pid); if (!s || !s.q) s = { xp: 0, games: 0, wins: 0, best: 0, q: {}, done: [] };
+    if (!s.v) { s.v = {}; Object.keys(s.q).forEach(function (id) { s.v[id] = s.q[id][0] || 1; }); } // v : combien de fois chaque question m'a déjà été posée
+    return s;
+  }
+  var QIDX = {}; OUH.Q.forEach(function (q, i) { QIDX[q.id] = i; });
+  function seenMask(pid) { // questions déjà posées à ce joueur, en version compacte (1 bit par question) pour la partager avec les autres
+    var v = stats(pid).v, n = OUH.Q.length, out = '', b = 0;
+    for (var i = 0; i < n; i++) { if (v[OUH.Q[i].id]) b |= 1 << (i % 8); if (i % 8 === 7 || i === n - 1) { out += String.fromCharCode(b); b = 0; } }
+    return btoa(out);
+  }
+  function seenBy(s, id) { // ce joueur a-t-il déjà eu cette question ?
+    if (!s || !s.sn || s.sq !== OUH.Q.length) return 0;
+    if (s._sn !== s.sn) { try { s._sb = atob(s.sn); } catch (e) { s._sb = ''; } s._sn = s.sn; }
+    var i = QIDX[id]; return (s._sb.charCodeAt(i >> 3) >> (i % 8)) & 1 ? 1 : 0;
+  }
   function custom(pid) { for (var i = 0; i < customs.length; i++) if (customs[i].pid === pid) return customs[i]; return null; }
   function stateOf(pid) { return my && pid === my.pid ? my : (players[pid] ? players[pid].s : null); }
   function online(pid) { if (my && pid === my.pid) return true; var p = players[pid]; return !!p && !p.s.bye && now() - p.seen < ONLINE_MS; }
@@ -246,14 +261,19 @@
     list.forEach(function (q) { (by[q.t] = by[q.t] || []).push(q); });
     Object.keys(by).forEach(function (t) { by[t] = shuffle(by[t]).sort(function (a, b) { return seen(a.id) - seen(b.id); }); });
     while (out.length < k) {
-      var ts = shuffle(Object.keys(by).filter(function (t) { return by[t].length; })).sort(function (a, b) { return (used[a] || 0) - (used[b] || 0); });
+      var ts = shuffle(Object.keys(by).filter(function (t) { return by[t].length; })) // d'abord une question inédite, ensuite le thème le moins servi
+        .sort(function (a, b) { return seen(by[a][0].id) - seen(by[b][0].id) || (used[a] || 0) - (used[b] || 0); });
       if (!ts.length) break;
       var q = by[ts[0]].shift(); used[q.t] = (used[q.t] || 0) + 1; out.push(q);
     }
     return out;
   }
   function pickQuestions(cfg) {
-    var st = stats(my.pid), seen = function (id) { return (st.q[id] || [0])[0]; };
+    var st = stats(my.pid), others = Object.keys(players).filter(online).map(function (p) { return players[p].s; }), memo = {};
+    var seen = function (id) { // nombre de fois où je l'ai eue + nombre d'autres joueurs présents qui l'ont déjà eue
+      if (memo[id] == null) { var n = st.v[id] || 0; others.forEach(function (s) { n += seenBy(s, id); }); memo[id] = n; }
+      return memo[id];
+    };
     if (cfg.mode === 'revise') return shuffle(missed()).slice(0, cfg.n);
     var pool = OUH.Q.filter(function (q) { return cfg.themes.indexOf(q.t) >= 0; }), n = cfg.n, plan;
     if (cfg.diff === 'prog') { var hard = Math.max(1, Math.round(n * 0.3)), mid = Math.round(n * 0.3); plan = [n - mid - hard, mid, hard]; }
@@ -266,6 +286,14 @@
     });
     var all = [].concat(out[0], out[1], out[2]);
     if (all.length < n) all = all.concat(pickFrom(pool.filter(function (q) { return !used[q.id]; }), n - all.length, seen, usedT));
+    all.forEach(function (q) { used[q.id] = 1; });
+    // le dosage facile / moyen / difficile passe après la nouveauté : une redite cède sa place à une question inédite d'un autre niveau, s'il en reste
+    var fresh = shuffle(pool.filter(function (q) { return !used[q.id] && !seen(q.id); }));
+    all = all.map(function (q) {
+      if (!seen(q.id) || !fresh.length) return q;
+      var best = 0; fresh.forEach(function (f, i) { if (Math.abs(f.d - q.d) < Math.abs(fresh[best].d - q.d)) best = i; });
+      return fresh.splice(best, 1)[0];
+    });
     if (cfg.diff === 'mix') all = shuffle(all); else all.sort(function (a, b) { return a.d - b.d; });
     return all.map(function (q) { return q.id; });
   }
@@ -320,13 +348,17 @@
     if (my.rec === k) return;
     var a = my.ans[g.qi], qid = g.qs[g.qi];
     my.rec = k;
+    var st = stats(my.pid);
+    st.v[qid] = (st.v[qid] || 0) + 1;
     if (a && a.c !== -2) {
-      var st = stats(my.pid), e = st.q[qid] || [0, 0, 0];
+      var e = st.q[qid] || [0, 0, 0];
       e[0]++; if (a.c === 0) { e[1]++; e[2] = 1; } else e[2] = 0;
-      st.q[qid] = e; LS.set('st.' + my.pid, st);
+      st.q[qid] = e;
       if (a.c === 0) { SFX.ok(); buzz(40); } else { SFX.bad(); buzz([60, 60, 120]); }
     }
-    LS.set('my.' + my.pid, my);
+    LS.set('st.' + my.pid, st);
+    my.sn = seenMask(my.pid); my.sq = OUH.Q.length;
+    pushMe();
   }
   function credit() { // fin de partie : mes lires rejoignent mon passeport
     var st = stats(my.pid);
@@ -352,6 +384,7 @@
     var gen = Math.max(players[pid] ? (players[pid].s.gen || 0) : 0, (saved && saved.gen) || 0) + 1; // « génération » : le dernier appareil entré l'emporte
     my = { pid: pid, dev: dev, gen: gen, name: BUILTIN[pid] || c.name, cos: cos, xp: st.xp, jt: now(), ts: now(), gid: null, ans: [], rdy: -1, rec: null };
     if (c && c.emoji && !c.photo) my.em = c.emoji;
+    my.sn = seenMask(pid); my.sq = OUH.Q.length;
     if (saved && saved.gid && g && saved.gid === g.gid) { my.gid = saved.gid; my.ans = saved.ans || []; my.rdy = saved.rdy == null ? -1 : saved.rdy; my.rec = saved.rec || null; }
     delete players[pid];
     LS.set('me', pid);
@@ -705,7 +738,7 @@
       case 'logout': leave(); break;
       case 'resetme':
         ask('Remettre à zéro ?', 'Les lires, le rang, les tampons et les erreurs à réviser de ' + my.name + ' seront effacés sur cet appareil. Impossible de revenir en arrière.', 'Tout effacer', function () {
-          LS.set('st.' + my.pid, { xp: 0, games: 0, wins: 0, best: 0, q: {}, done: stats(my.pid).done || [] }); // on garde la liste des parties déjà comptées, pour ne pas recréditer la dernière
+          LS.set('st.' + my.pid, { xp: 0, games: 0, wins: 0, best: 0, q: {}, v: stats(my.pid).v, done: stats(my.pid).done || [] }); // on garde les parties déjà comptées (pas de double crédit) et les questions déjà posées (pas de redite)
           delete prefs.cos[my.pid]; LS.set('prefs', prefs);
           my.xp = 0; my.cos = OUH.RANKS[0].id; ui.gain = null; pushMe(); toast('Passeport remis à zéro.'); tick();
         });
@@ -751,5 +784,5 @@
   if (last && (BUILTIN[last] || custom(last))) enter(last); else tick();
   setInterval(tick, 150);
   setInterval(function () { if (my) pushMe(); }, 4000);
-  OUH.debug = function () { return { my: my, g: g, players: players, info: info(), netUp: netUp }; };
+  OUH.debug = function () { return { my: my, g: g, players: players, info: info(), netUp: netUp, pick: pickQuestions }; };
 })();
