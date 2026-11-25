@@ -20,8 +20,8 @@ Le jeu est un site statique : il suffit de publier le dossier tel quel. Deux pos
 2. `Settings` → `Pages` → *Source* : `Deploy from a branch` → choisir la branche qui contient le jeu, dossier `/ (root)` → `Save`
 3. Une minute plus tard, le jeu est sur `https://<ton-pseudo>.github.io/ouhmitalie/`
 
-> Attention : avec un dépôt public, tout son contenu devient visible, y compris les deux photos d'origine à la racine.
-> Le jeu n'utilise que les têtes recadrées de `assets/heads/` : les photos d'origine peuvent être supprimées du dépôt.
+> Attention : avec un dépôt public, tout son contenu devient visible. Le jeu n'a besoin que des têtes recadrées de `assets/heads/` :
+> ne dépose pas de photos entières dans le dépôt.
 
 **B. Garder le dépôt privé** — Netlify, Cloudflare Pages ou Vercel (offres gratuites)
 
