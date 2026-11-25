@@ -136,8 +136,7 @@
   // Réglages par chapeau : largeur (× tête) et décalage vertical (× tête)
   var HATFIT = { touriste: [0.9, -0.3], pizzaiolo: [0.86, -0.42], gondolier: [1.12, -0.4], gladiateur: [0.98, -0.3], centurion: [1.04, -0.32], senateur: [1.08, -0.1], doge: [0.9, -0.36], empereur: [1.08, -0.1] };
 
-  OUH.costumeBody = function (cos) { return (BODIES[cos] || BODIES.touriste)(); };
-
+  
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   OUH.esc = esc;
 
@@ -153,7 +152,7 @@
   // Bonhomme complet. opts : cos, cls (classes d'animation), mini (tête seule)
   OUH.bobHTML = function (pid, head, opts) {
     opts = opts || {};
-    var cos = BODIES[opts.cos] ? opts.cos : 'touriste', fit = HATFIT[cos];
+    var cos = Object.prototype.hasOwnProperty.call(BODIES, opts.cos) ? opts.cos : 'touriste', fit = HATFIT[cos];
     var hat = '<svg class="bob-hat" viewBox="0 0 100 60" style="width:' + (fit[0] * 100) + '%;top:' + (fit[1] * 100) + '%" aria-hidden="true">' + HATS[cos] + '</svg>';
     if (opts.mini) return '<span class="bob bob-mini ' + (opts.cls || '') + '">' + OUH.headHTML(pid, head) + '</span>';
     return '<span class="bob ' + (opts.cls || '') + '"><span class="bob-top">' + OUH.headHTML(pid, head) + hat + '</span>' + BODIES[cos]() + '</span>';

@@ -131,8 +131,9 @@ body[data-screen="play"] #app { gap: 10px; padding-bottom: 0; }
 .fresh .ans { animation: rise .3s both; }
 .ans.a1 { animation-delay: .05s; } .ans.a2 { animation-delay: .1s; } .ans.a3 { animation-delay: .15s; }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
-.revealed .ans { animation: none; min-height: 46px; font-size: 15.5px; padding: 5px 10px 5px 6px; border-radius: 14px; }
-.revealed { gap: 7px; } .revealed .letter { width: 32px; height: 32px; font-size: 16px; border-radius: 10px; }
+.revealed .ans { animation: none; min-height: 40px; font-size: 15.5px; padding: 4px 10px 4px 5px; border-radius: 13px; box-shadow: 0 3px 0 var(--ink); }
+.revealed { gap: 6px; } .revealed .letter { width: 28px; height: 28px; font-size: 15px; border-radius: 9px; }
+.revealed .ans.dim { box-shadow: none; }
 .compact .qcard { min-height: 0; padding: 12px 14px; font-size: clamp(16px, 4.6vw, 19px); }
 .next { position: sticky; bottom: calc(60px + env(safe-area-inset-bottom)); margin: auto -14px 0; padding: 8px 14px 10px; background: linear-gradient(transparent, var(--cream) 22%); z-index: 4; }
 .next .btn.big { min-height: 56px; font-size: 21px; }
@@ -156,8 +157,8 @@ body[data-screen="play"] #app { gap: 10px; padding-bottom: 0; }
 .joker b { font-family: var(--display); font-weight: 400; font-size: 18px; } .joker small { font-size: 11.5px; color: var(--muted); }
 .joker.on { background: var(--yellow); } .joker:disabled { opacity: .35; box-shadow: none; }
 .waitmsg { text-align: center; color: var(--muted); padding: 10px 0; font-size: 15px; }
-.result { border: var(--line); border-radius: 16px; padding: 10px 14px; display: flex; flex-direction: column; animation: pop .35s both; }
-.result b { font-family: var(--display); font-weight: 400; font-size: 21px; } .result small { font-size: 13px; }
+.result { border: var(--line); border-radius: 16px; padding: 7px 14px; display: flex; flex-direction: column; animation: pop .35s both; }
+.result b { font-family: var(--display); font-weight: 400; font-size: 19px; } .result small { font-size: 13px; }
 .result.good { background: #D9F5E3; } .result.bad { background: #FFE0DC; }
 @keyframes pop { from { transform: scale(.85); opacity: 0; } 60% { transform: scale(1.04); } }
 .fact { background: #FFF1B8; border: var(--line); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow); user-select: text; -webkit-user-select: text; }

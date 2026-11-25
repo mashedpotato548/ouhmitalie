@@ -148,7 +148,21 @@
   }
   function activePids() { return gamePids().filter(function (p) { var s = stateOf(p); return online(p) && (s.gid === g.gid || g.roster.indexOf(p) >= 0); }); }
   function ansOf(pid, qi) { var s = stateOf(pid); return s && s.gid === g.gid && s.ans ? (s.ans[qi] || null) : null; }
-  function allAnswered() { return activePids().every(function (p) { return ansOf(p, g.qi); }); }
+  function afk(p) { // deux questions de suite sans répondre : on n'attend plus ce joueur (il revient dès qu'il répond)
+    if ((my && p === my.pid) || g.qi < 2) return false;
+    var a = ansOf(p, g.qi - 1), b = ansOf(p, g.qi - 2), c = ansOf(p, g.qi);
+    return !(c && c.c >= 0) && !!a && a.c === -1 && !!b && b.c === -1;
+  }
+  function allAnswered() { return activePids().every(function (p) { return ansOf(p, g.qi) || afk(p); }); }
+  function notReady() { // ceux qu'on attend avant la question suivante
+    var since = now() - (ui.rev[g.gid + ':' + g.seq] || now());
+    return activePids().filter(function (p) {
+      var s = stateOf(p), a = ansOf(p, g.qi);
+      if (s.gid === g.gid && s.rdy >= g.qi) return false;
+      if (afk(p)) return false;
+      return (a && a.c >= 0) || since < 10000; // pas de réponse : 10 s pour lire, puis on n'attend plus
+    });
+  }
   function info() {
     if (!g) return { ph: 'none' };
     var t = now(), at = gameTime(g), dur = g.cfg.dur * 1000;
@@ -159,7 +173,7 @@
       return { ph: alive ? 'other' : 'none' };
     }
     if (t < at) return { ph: 'count', left: at - t };
-    if (allAnswered() || t >= at + dur + 700) return { ph: 'reveal' };
+    if (ui.rev[g.gid + ':' + g.seq] || allAnswered() || t >= at + dur + 700) return { ph: 'reveal' };
     if (my.ans[g.qi]) return { ph: 'wait', left: Math.max(0, at + dur - t) };
     return { ph: 'ask', left: Math.max(0, at + dur - t) };
   }
@@ -255,8 +269,7 @@
     var k = g.gid + ':' + g.seq, t = now();
     if (!ui.rev[k]) ui.rev[k] = t;
     var act = activePids();
-    var ready = act.every(function (p) { var s = stateOf(p); return s.gid === g.gid && s.rdy >= g.qi; });
-    if (!ready && t - ui.rev[k] < REVEAL_MAX) { ui.adv = null; return; }
+    if (notReady().length && t - ui.rev[k] < REVEAL_MAX) { ui.adv = null; return; }
     if (!ui.adv || ui.adv.k !== k) {
       var ord = act.slice().sort(function (a, b) { return a === g.by ? -1 : b === g.by ? 1 : (a < b ? -1 : 1); });
       ui.adv = { k: k, t: t + Math.max(0, ord.indexOf(my.pid)) * 1500 };
@@ -268,7 +281,7 @@
     if (my.rec === k) return;
     var a = my.ans[g.qi], qid = g.qs[g.qi];
     my.rec = k;
-    if (a) {
+    if (a && a.c !== -2) {
       var st = stats(my.pid), e = st.q[qid] || [0, 0, 0];
       e[0]++; if (a.c === 0) { e[1]++; e[2] = 1; } else e[2] = 0;
       st.q[qid] = e; LS.set('st.' + my.pid, st);
@@ -410,9 +423,9 @@
     if (reveal) {
       var per = scoreOf(my.pid, qi).per[qi] || { ok: false }, res;
       if (per.ok) res = '<div class="result good"><b>✓ Bravo ! +' + lire(per.pts) + '</b><small>' + per.base + (per.speed ? ' + ' + per.speed + ' rapidité' : '') + (per.streak ? ' + ' + per.streak + ' série 🔥' : '') + (per.x2 ? ' — le tout ×2 !' : '') + '</small></div>';
-      else if (!mine) res = '<div class="result bad"><b>👀 Tu regardes cette question</b></div>';
+      else if (!mine || mine.c === -2) res = '<div class="result bad"><b>👀 Tu regardes cette question</b></div>';
       else res = '<div class="result bad"><b>' + (mine.c < 0 ? '⏰ Trop tard !' : '✗ Raté !') + '</b><small>La bonne réponse : ' + esc(q.a[0]) + '</small></div>';
-      var rdy = my.rdy >= qi, waiting = activePids().filter(function (p) { var s = stateOf(p); return !(s.rdy >= qi); }).map(nameOf);
+      var rdy = my.rdy >= qi, waiting = notReady().map(nameOf);
       var auto = Math.max(0, Math.ceil((REVEAL_MAX - (now() - (ui.rev[g.gid + ':' + g.seq] || now()))) / 1000));
       under = res + '<div class="fact"><b>💡 Le savais-tu ?</b><p>' + esc(q.e) + '</p></div>';
       next = rdy ? '<p class="waitmsg">👍 On attend ' + esc(waiting.join(', ') || '…') + ' <small>(suite auto dans ' + auto + ' s)</small></p>'
@@ -624,7 +637,9 @@
       case 'set': var v = el.dataset.v; ui.cfg[el.dataset.k] = /^\d+$/.test(v) ? +v : v; sheetCustom(); break;
       case 'golaunch': LS.set('cfg', ui.cfg); launch({ mode: 'custom', themes: ui.cfg.themes.slice(), diff: ui.cfg.diff, n: ui.cfg.n, dur: ui.cfg.dur }); break;
       case 'again': launch(g.cfg.mode === 'revise' && missed().length < 3 ? { mode: 'quick', themes: THEMES.map(function (t) { return t.id; }), diff: 'prog', n: 10, dur: 20 } : g.cfg); break;
-      case 'join': if (g && g.st === 'play') { my.gid = g.gid; my.ans = []; my.rdy = -1; my.rec = null; pushMe(); tick(); } break;
+      case 'join':
+        if (g && g.st === 'play') { my.gid = g.gid; my.ans = []; my.rdy = -1; my.rec = null; if (now() >= gameTime(g)) my.ans[g.qi] = { c: -2, t: 0 }; pushMe(); tick(); }
+        break;
       case 'stop': stopGame(); break;
       case 'ans': SFX.tap(); buzz(15); answer(+el.dataset.c); tick(); break;
       case 'j5': ui.j5 = k; SFX.go(); tick(); break;
