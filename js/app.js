@@ -336,7 +336,7 @@
     }
     secs.forEach(function (s) { if (cache[s[0]] !== s[2]) { $('#s-' + s[0]).innerHTML = s[2]; cache[s[0]] = s[2]; } });
   }
-  function netChip() { return '<span class="net ' + (netUp ? 'on' : 'offl') + '">' + (netUp ? '● En direct' : '○ Hors ligne') + '</span>'; }
+  function netChip() { return '<button class="net ' + (netUp ? 'on' : 'offl') + '" data-act="net">' + (netUp ? '● En direct' : '○ Hors ligne') + '</button>'; }
 
   function viewHome() {
     var cards = ORDER.concat(customs.map(function (c) { return c.pid; })).map(function (pid) {
@@ -621,6 +621,9 @@
         if (navigator.share) navigator.share({ title: 'Ouhmitalie', text: 'Rejoins-moi sur Ouhmitalie !', url: url }).catch(function () { });
         else if (navigator.clipboard) navigator.clipboard.writeText(url).then(function () { toast('Lien copié !'); });
         else prompt('Lien à partager :', url);
+        break;
+      case 'net':
+        toast(netUp ? 'En direct : relié à ' + netUp + ' serveur' + (netUp > 1 ? 's' : '') + ' sur ' + net.brokers.length + '. Un seul suffit !' : 'Hors ligne : aucun serveur joignable pour l\'instant. Le jeu réessaie tout seul ; en attendant, le solo fonctionne.');
         break;
       case 'sound': prefs.sound = !prefs.sound; LS.set('prefs', prefs); SFX.tap(); tick(); break;
       case 'logout': leave(); break;

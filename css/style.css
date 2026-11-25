@@ -77,7 +77,7 @@ button:disabled { cursor: default; }
 .pick.add { justify-content: center; background: var(--paper); border-style: dashed; padding-top: 10px; }
 .pick .plus { font-family: var(--display); font-size: 40px; line-height: 1.1; color: var(--red); }
 .foot { margin-top: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 14px; font-size: 14px; color: var(--muted); padding-top: 4px; }
-.net { font-size: 12.5px; font-weight: 900; padding: 3px 9px; border-radius: 99px; border: 2px solid var(--ink); background: var(--paper); white-space: nowrap; }
+.net { font-family: var(--body); font-size: 12.5px; font-weight: 900; padding: 3px 9px; border-radius: 99px; border: 2px solid var(--ink); background: var(--paper); white-space: nowrap; }
 .net.on { color: #0d6b3a; background: #D9F5E3; } .net.offl { color: #8a4a00; background: #FFE7C2; }
 
 /* ---------- salon ---------- */

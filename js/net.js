@@ -9,7 +9,8 @@
   var DEFAULT_BROKERS = [
     'wss://broker.emqx.io:8084/mqtt',
     'wss://broker.hivemq.com:8884/mqtt',
-    'wss://mqtt.eclipseprojects.io:443/mqtt'
+    'wss://mqtt.eclipseprojects.io:443/mqtt',
+    'wss://test.mosquitto.org:8081/mqtt'
   ];
 
   function b64(buf) { var s = '', a = new Uint8Array(buf); for (var i = 0; i < a.length; i++) s += String.fromCharCode(a[i]); return btoa(s); }

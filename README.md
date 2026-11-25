@@ -65,6 +65,6 @@ Les questions sont dans `js/questions/<thème>.js`, une ligne par question :
 ## Comment ça marche
 
 - `index.html`, `css/`, `js/` : le jeu, en JavaScript simple, sans dépendance à installer.
-- **Temps réel sans serveur** (`js/net.js`) : chaque téléphone publie son état (réponses, « prêt », costume) sur des brokers MQTT publics et gratuits (EMQX, HiveMQ, Eclipse), trois en parallèle pour la fiabilité. Les messages sont chiffrés (AES-GCM) avec une clé dérivée du code du salon.
+- **Temps réel sans serveur** (`js/net.js`) : chaque téléphone publie son état (réponses, « prêt », costume) sur des brokers MQTT publics et gratuits (EMQX, HiveMQ, Eclipse, Mosquitto), quatre en parallèle pour la fiabilité : un seul joignable suffit. Toucher la pastille « ● En direct » indique à combien de serveurs le téléphone est relié. Les messages sont chiffrés (AES-GCM) avec une clé dérivée du code du salon.
 - Les scores sont recalculés à l'identique sur chaque téléphone à partir des réponses de chacun.
 - `vendor/paho-mqtt-min.js` : client MQTT Eclipse Paho (licence EPL/EDL). Polices Titan One et Nunito (licence OFL).
